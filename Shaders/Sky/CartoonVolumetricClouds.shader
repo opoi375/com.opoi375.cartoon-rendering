@@ -8,10 +8,15 @@
 // Technique (simplified Guerrilla "Nubis"/Horizon-style model):
 //   1. The pixel's world-space view ray is intersected with a horizontal
 //      cloud slab [baseHeight, baseHeight + thickness] above the camera.
-//   2. Inside the slab the ray is marched in N steps. Density comes from
-//      low-frequency FBM shaped by a cumulus height profile (flat bottom,
-//      round top), remapped by a coverage parameter and eroded by
-//      high-frequency detail noise near the cloud edges.
+//   2. Inside the slab the ray is marched in N steps, with the march
+//      range clamped to the aerial-perspective fade distance so no step
+//      is wasted on invisible space. Density comes from low-frequency FBM
+//      shaped by a cumulus height profile (flat bottom, round top),
+//      remapped by a coverage parameter and eroded by high-frequency
+//      detail noise near the cloud edges. Every step samples the noise
+//      mip matching its world footprint (distance-adaptive LOD) and the
+//      detail erosion fades out with LOD - together these eliminate the
+//      far-field slice banding that fixed-mip marching produces.
 //   3. Lighting marches a few steps towards the sun (Beer transmittance)
 //      with a Powder edge-brightening term; the light response is then
 //      quantised into EASE-IN-OUT cel bands (SoftQuantizeSteps - same
@@ -90,8 +95,10 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             float4 _AmbNightHorizon;
             float2 _AmbBlendParams;       // x = sunsetBlendStart, y = dayBlendEnd
 
-            // Tileable 64^3 Perlin-Worley volume baked by
+            // Tileable 128^3 Perlin-Worley volume baked by
             // CloudNoiseTextureBaker (R = base shape, GBA = worley detail).
+            // Requires the mip-chained re-bake (Tools > Cloud > Bake Cloud
+            // Noise 3D) for the distance-adaptive LOD below to work.
             TEXTURE3D(_CloudNoiseTex); SAMPLER(sampler_CloudNoiseTex);
 
             // Temporal accumulation: previous frame's half-res cloud output
@@ -206,7 +213,13 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             //   base FBM -> coverage remap -> cumulus height profile ->
             //   detail erosion (strongest where density is low: the edges)
             // ----------------------------------------------------------------
-            float CloudDensity(float3 p, float h01, float2 windOffset, float2 camXZ)
+            //   lod: footprint-matched mip level for the noise volume -
+            //   at long range one march step spans many noise texels and
+            //   mip-0 sampling aliases into slice banding.
+            //   stepFrac: march step length as a slab fraction - used to
+            //   widen the analytic height ramps so they stay continuously
+            //   sampled when steps get coarse at distance.
+            float CloudDensity(float3 p, float h01, float2 windOffset, float2 camXZ, float lod, float stepFrac)
             {
                 // Sample the tileable Perlin-Worley volume. The pattern is
                 // RE-CENTRED on the camera horizontally so clouds always
@@ -223,13 +236,15 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 float3 uvw = float3((p.x - camXZ.x) * scale + windOffset.x,
                                     (p.y - slabBaseY) * scale,
                                     (p.z - camXZ.y) * scale + windOffset.y);
-                float4 n = SAMPLE_TEXTURE3D_LOD(_CloudNoiseTex, sampler_CloudNoiseTex, uvw, 0);
+                float4 n = SAMPLE_TEXTURE3D_LOD(_CloudNoiseTex, sampler_CloudNoiseTex, uvw, lod);
 
                 // Second sample at ~3x scale, offset half a tile: adds
                 // mid-scale shape wobble and finer erosion detail so the
-                // surface doesn't read as one-size round blobs.
+                // surface doesn't read as one-size round blobs. +2 mips:
+                // it runs ~3x finer, so it must fade out two levels earlier.
                 float4 n2 = SAMPLE_TEXTURE3D_LOD(_CloudNoiseTex, sampler_CloudNoiseTex,
-                                                 uvw * 2.9 + float3(0.37, 0.11, 0.53), 0);
+                                                 uvw * 2.9 + float3(0.37, 0.11, 0.53),
+                                                 min(lod + 2.0, 7.0));
 
                 // Coverage remap with a SOFT threshold so silhouettes stay
                 // organic. n2 wobbles the base field for richer contours.
@@ -241,17 +256,28 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 // cliffs that the march aliased into comb-stripe banding.
                 float detail = n.g * 0.5 + n.b * 0.3 + n.a * 0.12 + n2.g * 0.08;
                 float edgeWeight = smoothstep(0.75, 0.35, n.r); // erode where the field is thin
-                float r = saturate(n.r + (n2.r - 0.5) * 0.18)
+                // Erosion and fine wobble are high-frequency by nature -
+                // fade them out with LOD so distant clouds keep a clean
+                // silhouette instead of aliased, eroded speckle.
+                float hfFade = saturate(1.0 - lod * 0.2);
+                float r = saturate(n.r + (n2.r - 0.5) * 0.18 * hfFade)
                         - detail * _CloudMarchParams.w * 0.6
-                              * edgeWeight * (0.4 + 0.6 * h01);
+                              * edgeWeight * (0.4 + 0.6 * h01) * hfFade;
 
                 float d = smoothstep(1.0 - coverage, 1.0 - coverage + 0.2, r);
 
-                // Height profile: gentle ramp-in over the bottom fifth of
-                // the slab (a steep ramp was the source of the horizontal
-                // luminance bands on cloud undersides), wispy top fade.
-                float hg = smoothstep(0.0, 0.22, h01)
-                         * (1.0 - smoothstep(0.8, 1.0, h01));
+                // Height profile: gentle ramp-in over the bottom of the
+                // slab, wispy top fade. Both ramps WIDEN when a march step
+                // spans a large slab fraction: a ramp narrower than ~2
+                // steps is sampled discontinuously, which is exactly the
+                // horizontal terracing seen on distant cloud undersides.
+                // Near steps are tiny, so the authored 0.22/0.20 ramps
+                // survive unchanged up close.
+                float pad   = stepFrac * 2.0;
+                float rampB = max(0.22, pad);
+                float rampT = max(0.20, pad);
+                float hg = smoothstep(0.0, rampB, h01)
+                         * (1.0 - smoothstep(1.0 - rampT, 1.0, h01));
 
                 return d * hg;
             }
@@ -260,7 +286,7 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             // Light march towards the sun: Beer transmittance through the
             // slab. Only a few fixed steps - stylised clouds forgive a lot.
             // ----------------------------------------------------------------
-            float LightTransmittance(float3 p, float3 toSun, float baseY, float thickness, float2 windOffset, float2 camXZ)
+            float LightTransmittance(float3 p, float3 toSun, float baseY, float thickness, float2 windOffset, float2 camXZ, float lod)
             {
                 int   lightSteps = (int)clamp(_CloudMarchParams.z, 2.0, 8.0);
                 float ls = thickness * 0.05;  // fine steps: coarse light march banded
@@ -271,7 +297,7 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                     if (i > lightSteps) break;
                     float3 sp = p + toSun * (ls * (float)i);
                     float h = saturate((sp.y - baseY) / thickness);
-                    acc += CloudDensity(sp, h, windOffset, camXZ) * ls;
+                    acc += CloudDensity(sp, h, windOffset, camXZ, lod, 0.05) * ls;
                 }
                 return exp(-acc * _CloudMarchParams.x * 0.035);
             }
@@ -311,10 +337,14 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 float tA = (baseY - camPos.y) / viewDir.y;
                 float tB = (topY  - camPos.y) / viewDir.y;
                 float tStart = max(min(tA, tB), 0.0);
-                // Aerial perspective: nothing beyond ~16 cloud-altitudes
-                // contributes (the distance fade below kills it anyway) -
-                // clamp the march so far grazing rays don't waste steps.
-                float tEnd   = min(max(tA, tB), min(kMaxDist, baseY * 20.0));
+                // Aerial perspective kills everything beyond ~16 cloud
+                // altitudes (see the alpha fade at the bottom of Frag), so
+                // clamp the march exactly there: steps spent in fully faded
+                // space are invisible, and concentrating the FIXED step
+                // budget inside the visible range shrinks stepLen - the
+                // direct cause of far-field slice banding (48 steps spread
+                // over ~20km undersample the ~30m noise texels badly).
+                float tEnd   = min(max(tA, tB), min(kMaxDist, baseY * 16.0));
                 if (tEnd <= tStart)
                     return half4(0.0, 0.0, 0.0, 0.0);
 
@@ -338,16 +368,28 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 float  viewSun = saturate(dot(viewDir, toSun));
 
                 // March-start jitter, ANIMATED per frame with a proper
-                // per-pixel integer hash. (IGN + phase shift only translates
-                // the fixed diagonal pattern, whose spatial correlation
-                // survives temporal averaging; an LCG/xorshift hash keyed by
-                // pixel AND frame decorrelates fully, so the temporal blend
-                // converges to a clean mean.)
+                // per-pixel integer hash - but ONLY when temporal
+                // accumulation is active (_CloudHistoryWeight > 0 covers
+                // both the asset toggle and non-game cameras): without
+                // history to average it, an animated jitter reads as
+                // flickering grain, so the hash freezes to a stable
+                // per-pixel pattern instead.
+                uint frameTerm = _CloudHistoryWeight > 0.001
+                               ? (uint)(_Time.y * 61.0) : 0u;
                 uint jh = (uint)input.positionCS.x * 1664525u
                         ^ (uint)input.positionCS.y * 1013904223u
-                        ^ (uint)(_Time.y * 61.0) * 22695477u;
+                        ^ frameTerm * 22695477u;
                 jh ^= jh >> 16; jh *= 2246822519u; jh ^= jh >> 13;
-                float jitter = ((float)(jh & 0xFFFFFFu) / 16777216.0 - 0.5) * stepLen * 0.45;
+                float jitter = ((float)(jh & 0xFFFFFFu) / 16777216.0 - 0.5) * stepLen * 0.9;
+
+                // Noise footprint for LOD selection: the 128^3 tile spans
+                // 1/scale world metres, so one texel covers texelWorld m.
+                float texelWorld = 1.0 / max(_CloudShapeParams.w * 128.0, 1e-5);
+                // March undersampling term, Nyquist-biased: pick the mip
+                // whose texel is ~2x the step length, so every noise
+                // feature is sampled at least twice. Critical sampling
+                // (texel == stepLen) still stairs the density field.
+                float lodStep    = log2(max(stepLen * 2.0 / texelWorld, 1.0));
 
                 // March front-to-back with early-out.
                 float3 col = 0.0;
@@ -358,14 +400,20 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                     float  t   = tStart + jitter + ((float)s + 0.5) * stepLen;
                     float3 p   = camPos + viewDir * t;
                     float  h01 = saturate((p.y - baseY) / thickness);
-                    float  dn  = CloudDensity(p, h01, windOffset, camPos.xz);
+                    // Pixel-footprint undersampling term: at half-res one
+                    // RT texel is ~2 screen px, so its world size at
+                    // distance t is ~2t/RTHeight. Order-of-magnitude LOD
+                    // is all we need - no exact FOV required.
+                    float lodPix = log2(max(t * 2.0 / (_CloudRTSize.y * texelWorld), 1.0));
+                    float lod    = clamp(max(lodStep, lodPix), 0.0, 7.0);
+                    float  dn  = CloudDensity(p, h01, windOffset, camPos.xz, lod, stepLen / thickness);
                     if (dn <= 0.003) continue;
 
                     // Beer towards the sun + Powder edge term. Lighting stays
                     // SMOOTH per slice - quantising here banded every slice
                     // into stripes. Cel banding is applied once after the
                     // march instead (see below).
-                    float lt     = LightTransmittance(p, toSun, baseY, thickness, windOffset, camPos.xz);
+                    float lt     = LightTransmittance(p, toSun, baseY, thickness, windOffset, camPos.xz, lod);
                     float powder = 1.0 - exp(-dn * stepLen * sigma * 2.0);
                     float lightE = lt * lerp(0.6, 1.0, powder);
 

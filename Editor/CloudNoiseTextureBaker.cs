@@ -10,6 +10,11 @@
 //
 // The texture is fully tileable on every axis (periodic lattice), so the
 // shader can sample it with a Repeat sampler in unbounded world UVW space.
+//
+// A full mip chain is generated (128^3 -> 1^3). The cloud shader picks the
+// mip matching the march footprint per step: without mips, distant samples
+// alias the 128-texel tile into visible slice banding. Down-sampling a
+// tileable volume stays tileable, so Repeat wrapping is unaffected.
 
 using UnityEditor;
 using UnityEngine;
@@ -51,14 +56,16 @@ namespace CartoonRendering.EditorTools
                     (byte)(Mathf.Clamp01(w3) * 255f));
             }
 
-            var tex = new Texture3D(N, N, N, TextureFormat.RGBA32, false)
+            // mipChain: true -> full 128^3..1^3 chain for distance LOD.
+            // Trilinear so cross-mip transitions stay invisible.
+            var tex = new Texture3D(N, N, N, TextureFormat.RGBA32, true)
             {
                 wrapMode = TextureWrapMode.Repeat,
-                filterMode = FilterMode.Bilinear,
+                filterMode = FilterMode.Trilinear,
                 name = "CloudNoise3D"
             };
             tex.SetPixelData(data, 0);
-            tex.Apply();
+            tex.Apply(true, false); // updateMipmaps: generate the chain
 
             System.IO.Directory.CreateDirectory("Packages/com.opoi375.cartoon-rendering/Textures");
             var existing = AssetDatabase.LoadAssetAtPath<Texture3D>(kPath);
@@ -73,7 +80,7 @@ namespace CartoonRendering.EditorTools
                 AssetDatabase.CreateAsset(tex, kPath);
             }
             AssetDatabase.SaveAssets();
-            Debug.Log($"[CloudNoiseTextureBaker] Baked {N}^3 Perlin-Worley volume -> {kPath}");
+            Debug.Log($"[CloudNoiseTextureBaker] Baked {N}^3 Perlin-Worley volume (with mip chain) -> {kPath}");
         }
 
         // ----- Tileable Perlin ---------------------------------------------

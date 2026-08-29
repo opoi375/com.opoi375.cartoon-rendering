@@ -132,6 +132,13 @@ namespace CartoonRendering
         [Range(1.0f, 16.0f), Tooltip("Silver-lining tightness around the sun.")]
         public float volCloudSilverPower = 6.0f;
 
+        [Tooltip("Temporal accumulation (TAA-style smoothing) for volumetric " +
+            "clouds: blends each frame with reprojected history so marching " +
+            "banding/dither converge away over a few frames. Turn OFF for " +
+            "crisp single-frame clouds (also freezes the march jitter so it " +
+            "doesn't shimmer) at the cost of visible dither grain.")]
+        public bool volCloudTemporalEnabled = true;
+
         [Range(0.0f, 0.9f), Tooltip("Temporal accumulation weight. Higher = smoother " +
             "(marching banding/dither converge away over a few frames) but more ghosting " +
             "on fast camera moves. 0 disables history blending.")]

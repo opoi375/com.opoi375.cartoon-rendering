@@ -35,7 +35,7 @@ MonoBehaviour:
   volCloudThickness: 900
   volCloudScale: 0.00022
   volCloudDensity: 1.55
-  volCloudMarchSteps: 48
+  volCloudMarchSteps: 11
   volCloudLightSteps: 5
   volCloudDetail: 0.2
   volCloudWindSpeed: 12

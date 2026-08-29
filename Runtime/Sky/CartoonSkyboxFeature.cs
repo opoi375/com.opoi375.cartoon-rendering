@@ -270,9 +270,13 @@ namespace CartoonRendering
                 Matrix4x4 invVP = vp.inverse;
 
                 // Temporal accumulation is only maintained for game cameras
-                // (scene view / preview cameras render the layer fresh).
+                // (scene view / preview cameras render the layer fresh) and
+                // can be toggled off on the sky asset: hist == null then
+                // takes the fresh-render path below (temp RT, weight 0, no
+                // history buffers allocated).
                 CloudHistory hist = null;
-                if (cloudsOn && cameraData.camera.cameraType == CameraType.Game)
+                if (cloudsOn && sky.volCloudTemporalEnabled &&
+                    cameraData.camera.cameraType == CameraType.Game)
                 {
                     var tgt0 = cameraData.cameraTargetDescriptor;
                     hist = m_Feature.GetCloudHistory(cameraData.camera.GetEntityId(),
