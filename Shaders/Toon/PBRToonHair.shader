@@ -88,7 +88,7 @@ Shader "CartoonRendering/PBRToon/Hair"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Assets/CartoonRendering/Shaders/Toon/PBRToon.hlsl"
+            #include "PBRToon.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
@@ -420,7 +420,7 @@ Shader "CartoonRendering/PBRToon/Hair"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Assets/CartoonRendering/Shaders/Toon/PBRToon.hlsl"
+            #include "PBRToon.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;

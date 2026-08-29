@@ -17,7 +17,7 @@ namespace CartoonRendering.EditorTools
     public static class SdfComputeBaker
     {
         /// <summary>Compute Shader 在工程内的固定路径。</summary>
-        public const string ComputeShaderPath = "Assets/CartoonRendering/Editor/SDF/SdfGenerator.compute";
+        public const string ComputeShaderPath = "Packages/com.opoi375.cartoon-rendering/Editor/SDF/SdfGenerator.compute";
 
         /// <summary>
         /// 由 CPU 端的遮罩数据生成 SDF 并读回（主要用于测试与验证）。

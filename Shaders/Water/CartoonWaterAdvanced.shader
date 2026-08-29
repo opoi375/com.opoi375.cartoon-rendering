@@ -88,7 +88,7 @@ Shader "CartoonRendering/ToonWater/Advanced"
             #pragma target 5.0
             #pragma require tessellation
 
-            #include "Assets/CartoonRendering/Shaders/Water/CartoonWaterAdvanced.hlsl"
+            #include "CartoonWaterAdvanced.hlsl"
 
             struct Attributes
             {
@@ -236,7 +236,7 @@ Shader "CartoonRendering/ToonWater/Advanced"
             #pragma fragment frag
             #pragma target 3.5
 
-            #include "Assets/CartoonRendering/Shaders/Water/CartoonWaterAdvanced.hlsl"
+            #include "CartoonWaterAdvanced.hlsl"
 
             struct Attributes
             {

@@ -26,8 +26,8 @@ namespace CartoonRendering.Editor.Water
             Cartoon = 1,  // CartoonWater.mat (article: depth colour + noise foam)
         }
 
-        private const string SimpleMaterialPath = "Assets/CartoonRendering/Materials/CartoonWaterSimple.mat";
-        private const string CartoonMaterialPath = "Assets/CartoonRendering/Materials/CartoonWater.mat";
+        private const string SimpleMaterialPath = "Packages/com.opoi375.cartoon-rendering/Materials/CartoonWaterSimple.mat";
+        private const string CartoonMaterialPath = "Packages/com.opoi375.cartoon-rendering/Materials/CartoonWater.mat";
 
         // A wave at _WaveScale = 6 has wavelength 2*PI/6 ~= 1.05m. Keep the
         // segment spacing below ~0.4m (>= 2-3 samples per wavelength) so crests

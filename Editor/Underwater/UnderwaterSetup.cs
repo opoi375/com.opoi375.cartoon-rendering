@@ -22,7 +22,7 @@ namespace CartoonRendering
     public static class UnderwaterSetup
     {
         private const string RendererAssetPath = "Assets/Settings/CartoonRP_Renderer.asset";
-        private const string ProfileDir = "Assets/CartoonRendering/Data/Underwater";
+        private const string ProfileDir = "Packages/com.opoi375.cartoon-rendering/Data/Underwater";
         private const string ProfilePath = ProfileDir + "/UnderwaterZoneProfile.asset";
 
         [MenuItem("Tools/Underwater/Setup Underwater Zone")]
@@ -58,7 +58,7 @@ namespace CartoonRendering
             if (profile == null)
             {
                 if (!AssetDatabase.IsValidFolder(ProfileDir))
-                    AssetDatabase.CreateFolder("Assets/CartoonRendering/Data", "Underwater");
+                    AssetDatabase.CreateFolder("Packages/com.opoi375.cartoon-rendering/Data", "Underwater");
                 profile = ScriptableObject.CreateInstance<VolumeProfile>();
                 AssetDatabase.CreateAsset(profile, ProfilePath);
             }

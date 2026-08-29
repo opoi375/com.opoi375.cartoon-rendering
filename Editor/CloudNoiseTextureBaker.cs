@@ -19,7 +19,7 @@ namespace CartoonRendering.EditorTools
     public static class CloudNoiseTextureBaker
     {
         private const int N = 128;
-        private const string kPath = "Assets/CartoonRendering/Textures/CloudNoise3D.asset";
+        private const string kPath = "Packages/com.opoi375.cartoon-rendering/Textures/CloudNoise3D.asset";
 
         [MenuItem("Tools/Cloud/Bake Cloud Noise 3D")]
         public static void Bake()
@@ -60,7 +60,7 @@ namespace CartoonRendering.EditorTools
             tex.SetPixelData(data, 0);
             tex.Apply();
 
-            System.IO.Directory.CreateDirectory("Assets/CartoonRendering/Textures");
+            System.IO.Directory.CreateDirectory("Packages/com.opoi375.cartoon-rendering/Textures");
             var existing = AssetDatabase.LoadAssetAtPath<Texture3D>(kPath);
             if (existing != null)
             {

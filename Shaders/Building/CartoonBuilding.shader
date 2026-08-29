@@ -60,7 +60,7 @@ Shader "CartoonRendering/Building"
 
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-        #include "Assets/CartoonRendering/Shaders/Toon/PBRToon.hlsl"
+        #include "../Toon/PBRToon.hlsl"
         TEXTURE2D(_BaseMap);     SAMPLER(sampler_BaseMap);
         TEXTURE2D(_BumpMap);     SAMPLER(sampler_BumpMap);
         TEXTURE2D(_EmissionMap); SAMPLER(sampler_EmissionMap);

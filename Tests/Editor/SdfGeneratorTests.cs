@@ -330,7 +330,7 @@ namespace CartoonRendering.Editor.Tests
     [TestFixture]
     public class SdfGpuConsistencyTests
     {
-        private const string ComputePath = "Assets/CartoonRendering/Editor/SDF/SdfGenerator.compute";
+        private const string ComputePath = "Packages/com.opoi375.cartoon-rendering/Editor/SDF/SdfGenerator.compute";
 
         // Given 同一张随机噪声二值遮罩图
         // When 分别用 CPU 参考实现和 GPU Compute Shader 生成 SDF 图

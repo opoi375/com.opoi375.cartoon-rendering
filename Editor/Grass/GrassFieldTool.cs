@@ -13,7 +13,7 @@ namespace CartoonRendering.Editor
     {
         private const string GrassShader = "CartoonRendering/Grass/CartoonGrass";
         private const string BakeShader = "CartoonRendering/Grass/GrassInteractionBake";
-        private const string MaterialFolder = "Assets/CartoonRendering/Materials/Grass";
+        private const string MaterialFolder = "Packages/com.opoi375.cartoon-rendering/Materials/Grass";
 
         [MenuItem("Tools/Grass/Create Cartoon Grass Field (Small Area)")]
         public static void CreateGrassField()

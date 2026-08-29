@@ -9,7 +9,7 @@
 //
 // Since we cannot bundle Roystan's assets, this tool regenerates equivalent
 // textures procedurally (tileable value-noise fBm; domain-warped for the
-// distortion map) and writes them into Assets/CartoonRendering/Textures/Water/.
+// distortion map) and writes them into Packages/com.opoi375.cartoon-rendering/Textures/Water/.
 //
 // It also creates/updates the CartoonWater material wired up with the article's
 // default parameters.
@@ -28,9 +28,9 @@ namespace CartoonRendering.Editor.Water
 {
     public static class WaterAssetsGenerator
     {
-        private const string TextureDir = "Assets/CartoonRendering/Textures/Water";
-        private const string MaterialPath = "Assets/CartoonRendering/Materials/CartoonWater.mat";
-        private const string AdvancedMaterialPath = "Assets/CartoonRendering/Materials/CartoonWaterAdvanced.mat";
+        private const string TextureDir = "Packages/com.opoi375.cartoon-rendering/Textures/Water";
+        private const string MaterialPath = "Packages/com.opoi375.cartoon-rendering/Materials/CartoonWater.mat";
+        private const string AdvancedMaterialPath = "Packages/com.opoi375.cartoon-rendering/Materials/CartoonWaterAdvanced.mat";
         private const string ShaderName = "CartoonRendering/ToonWater/Cartoon";
         private const string AdvancedShaderName = "CartoonRendering/ToonWater/Advanced";
 

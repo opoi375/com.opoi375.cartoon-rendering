@@ -376,7 +376,7 @@ Shader "CartoonRendering/Grass/CartoonGrass"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Assets/CartoonRendering/Shaders/Toon/PBRToon.hlsl" // PackToonGBuffer
+            #include "../Toon/PBRToon.hlsl" // PackToonGBuffer
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _RootColor;
