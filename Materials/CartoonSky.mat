@@ -1,0 +1,69 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: CartoonSky
+  m_Shader: {fileID: 4800000, guid: fc9044fa7efb76d4e827537bd4f334ed, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _CartoonCloudMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _CartoonGradientRamp:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _CartoonStarMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _CartoonGradientSoftness: 0.25
+    - _CartoonHasCloudMap: 0
+    - _CartoonHasGradientRamp: 0
+    - _CartoonHasStarMap: 0
+    - _CartoonIncludeSunDisc: 1
+    - _CartoonIntensity: 1
+    - _CartoonTimeOfDay: 0.6027249
+    m_Colors:
+    - _CartoonBackgroundColor: {r: 0.02, g: 0.05, b: 0.15, a: 1}
+    - _CartoonBlendParams: {r: 0.05, g: 0.35, b: 0, a: 0}
+    - _CartoonBottomColor: {r: 0.72, g: 0.86, b: 1, a: 1}
+    - _CartoonCloudColor: {r: 1, g: 0.99, b: 0.97, a: 1}
+    - _CartoonCloudParams: {r: 201, g: 0.242, b: 1.92, a: 0}
+    - _CartoonHorizonColor: {r: 0.7236116, g: 0.94208556, b: 0.9528302, a: 1}
+    - _CartoonMiddleColor: {r: 0.5, g: 0.75, b: 1, a: 1}
+    - _CartoonNightBackgroundColor: {r: 0.01, g: 0.01, b: 0.03, a: 1}
+    - _CartoonNightHorizonColor: {r: 0.06, g: 0.08, b: 0.16, a: 1}
+    - _CartoonNightMiddleColor: {r: 0.03, g: 0.05, b: 0.12, a: 1}
+    - _CartoonNightTopColor: {r: 0.01, g: 0.02, b: 0.06, a: 1}
+    - _CartoonStarColor: {r: 2.996079, g: 2.996079, b: 2.996079, a: 1}
+    - _CartoonStarParams: {r: 1.54, g: 0.06, b: 1.61, a: 0.035}
+    - _CartoonSunColor: {r: 11.984315, g: 10.806725, b: 10.79719, a: 1}
+    - _CartoonSunDirection: {r: -0.3213937, g: -0.58910024, b: 0.7413953, a: 0}
+    - _CartoonSunParams: {r: 0.001, g: 0.196, b: 0.433, a: 0}
+    - _CartoonSunsetHorizonColor: {r: 1.4, g: 0.55, b: 0.2, a: 1}
+    - _CartoonSunsetMiddleColor: {r: 0.95, g: 0.38, b: 0.22, a: 1}
+    - _CartoonSunsetTopColor: {r: 0.22, g: 0.12, b: 0.45, a: 1}
+    - _CartoonTopColor: {r: 0.2, g: 0.5, b: 1, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

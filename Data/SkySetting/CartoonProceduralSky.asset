@@ -1,0 +1,64 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 33b6c46e0299c6e43ac92db82f8dae8b, type: 3}
+  m_Name: CartoonProceduralSky
+  m_EditorClassIdentifier: CartoonRendering.Runtime::CartoonRendering.CartoonProceduralSky
+  sunColor: {r: 11.984315, g: 10.806725, b: 10.79719, a: 1}
+  sunSize: 0.001
+  sunInnerBound: 0.196
+  sunOuterBound: 0.433
+  starColor: {r: 2.996079, g: 2.996079, b: 2.996079, a: 1}
+  starIntensity: 1.54
+  starSize: 0.06
+  starScale: 1.61
+  starDensity: 0.035
+  starTexture: {fileID: 0}
+  cloudColor: {r: 1, g: 0.99, b: 0.97, a: 1}
+  cloudHeight: 201
+  cloudThreshold: 0.242
+  cloudScale: 1.92
+  cloudIntensity: 0
+  cloudTexture: {fileID: 0}
+  volumetricCloudsEnabled: 1
+  volCloudNoiseTexture: {fileID: 11700000, guid: 91f0fe2079f5a1e4dbfc1acf6045de32, type: 2}
+  volCloudCoverage: 0.72
+  volCloudBaseHeight: 600
+  volCloudThickness: 900
+  volCloudScale: 0.00022
+  volCloudDensity: 1.55
+  volCloudMarchSteps: 48
+  volCloudLightSteps: 5
+  volCloudDetail: 0.2
+  volCloudWindSpeed: 12
+  volCloudShadeSteps: 3
+  volCloudShadeSmooth: 0.35
+  volCloudSilverIntensity: 0.6
+  volCloudSilverPower: 6
+  volCloudTemporal: 0.8
+  topColor: {r: 0.2, g: 0.5, b: 1, a: 1}
+  middleColor: {r: 0.5, g: 0.75, b: 1, a: 1}
+  bottomColor: {r: 0.72, g: 0.86, b: 1, a: 1}
+  horizonColor: {r: 0.7236116, g: 0.94208556, b: 0.9528302, a: 1}
+  backgroundColor: {r: 0.02, g: 0.05, b: 0.15, a: 1}
+  gradientSoftness: 0.25
+  sunsetTopColor: {r: 0.22, g: 0.12, b: 0.45, a: 1}
+  sunsetMiddleColor: {r: 0.95, g: 0.38, b: 0.22, a: 1}
+  sunsetHorizonColor: {r: 1.4, g: 0.55, b: 0.2, a: 1}
+  nightTopColor: {r: 0.01, g: 0.02, b: 0.06, a: 1}
+  nightMiddleColor: {r: 0.03, g: 0.05, b: 0.12, a: 1}
+  nightHorizonColor: {r: 0.06, g: 0.08, b: 0.16, a: 1}
+  nightBackgroundColor: {r: 0.01, g: 0.01, b: 0.03, a: 1}
+  sunsetBlendStart: 0.05
+  dayBlendEnd: 0.35
+  gradientRamp: {fileID: 0}
+  intensity: 1
+  includeSunDisc: 1
