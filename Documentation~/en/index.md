@@ -5,6 +5,9 @@ hero:
   name: Cartoon Rendering
   text: Cartoon rendering toolkit for Unity URP
   tagline: Toon character shading · Procedural sky · Volumetric clouds · Cartoon water · Interactive grass — an all-in-one stylized rendering package
+  image:
+    src: /logo.png
+    alt: Cartoon Rendering
   actions:
     - theme: brand
       text: Quick Start

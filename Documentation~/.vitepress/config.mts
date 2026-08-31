@@ -83,6 +83,11 @@ export default defineConfig({
   lastUpdated: true,
   cleanUrls: true,
 
+  head: [
+    ['link', { rel: 'icon', type: 'image/png', href: '/com.opoi375.cartoon-rendering/favicon-32.png' }],
+    ['link', { rel: 'icon', type: 'image/x-icon', href: '/com.opoi375.cartoon-rendering/favicon.ico' }]
+  ],
+
   locales: {
     root: {
       label: '简体中文',
@@ -129,6 +134,7 @@ export default defineConfig({
   },
 
   themeConfig: {
+    logo: '/logo.png',
     socialLinks: [{ icon: 'github', link: pkgRepo }],
     search: { provider: 'local' }
   }

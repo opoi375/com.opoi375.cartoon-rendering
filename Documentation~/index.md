@@ -5,6 +5,9 @@ hero:
   name: Cartoon Rendering
   text: Unity URP 卡通渲染工具包
   tagline: 角色 Toon 着色 · 程序化天空 · 体积云 · 卡通水面 · 交互草地 —— 一站式风格化渲染方案
+  image:
+    src: /logo.png
+    alt: Cartoon Rendering
   actions:
     - theme: brand
       text: 快速上手
