@@ -1,9 +1,3 @@
-# OS files
-.DS_Store
-Thumbs.db
-
-# Unity temp
-[Ll]ibrary/
-[Tt]emp/
-[Oo]bj/
-[Ll]ogs/
+Documentation~/node_modules/
+Documentation~/.vitepress/dist/
+Documentation~/.vitepress/cache/
