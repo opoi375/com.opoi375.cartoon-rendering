@@ -15,6 +15,7 @@ It packs a complete cartoon rendering pipeline into one package — from charact
 | Underwater | URP post-process Render Feature | [Details](/en/water/#underwater-post-process) |
 | Pixelate | Volume-driven pixelation post process | [Details](/en/effects/) |
 | Interactive grass | GPU grass fields with trample & recovery | [Details](/en/grass/) |
+| World bend | Animal Crossing-style tiny-planet view, hooked into every pass | [Details](/en/world-bend/) |
 | SDF UI | Rounded rects / boolean ops / metaballs UI materials | [Details](/en/ui-sdf/) |
 | Editor tools | SDF generator, cloud noise baker, water generators | [Details](/en/tools/) |
 

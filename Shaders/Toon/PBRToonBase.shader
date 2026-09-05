@@ -115,6 +115,7 @@ Shader "CartoonRendering/PBRToon/Base"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "PBRToon.hlsl"
+            #include "../Library/WorldBend.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
@@ -178,6 +179,11 @@ Shader "CartoonRendering/PBRToon/Base"
 
                 VertexPositionInputs posInputs = GetVertexPositionInputs(input.positionOS.xyz);
                 VertexNormalInputs   nrmInputs = GetVertexNormalInputs(input.normalOS);
+
+                // 世界弯曲（动森式小星球）：远处顶点下沉，法线跟随曲面
+                posInputs.positionWS = ApplyWorldBend(posInputs.positionWS);
+                posInputs.positionCS = TransformWorldToHClip(posInputs.positionWS);
+                nrmInputs.normalWS   = ApplyWorldBendNormal(nrmInputs.normalWS, posInputs.positionWS);
 
                 output.positionCS = posInputs.positionCS;
                 output.positionWS = posInputs.positionWS;
@@ -320,6 +326,7 @@ Shader "CartoonRendering/PBRToon/Base"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+            #include "../Library/WorldBend.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
@@ -354,6 +361,7 @@ Shader "CartoonRendering/PBRToon/Base"
                 V o;
                 float3 posWS = TransformObjectToWorld(i.positionOS.xyz);
                 float3 nrmWS = TransformObjectToWorldNormal(i.normalOS);
+                posWS = ApplyWorldBend(posWS); // 与主 Pass 同步弯曲，阴影不脱节
                 float4 posCS = TransformWorldToHClip(ApplyShadowBias(posWS, nrmWS, _LightDirection));
                 #if UNITY_REVERSED_Z
                     posCS.z = min(posCS.z, UNITY_NEAR_CLIP_VALUE);
@@ -393,6 +401,7 @@ Shader "CartoonRendering/PBRToon/Base"
             #pragma shader_feature_local _ALPHATEST_ON
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "../Library/WorldBend.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
@@ -423,7 +432,8 @@ Shader "CartoonRendering/PBRToon/Base"
             V DepthVert(A i)
             {
                 V o;
-                o.positionCS = TransformObjectToHClip(i.positionOS.xyz);
+                float3 posWS = ApplyWorldBend(TransformObjectToWorld(i.positionOS.xyz));
+                o.positionCS = TransformWorldToHClip(posWS);
                 o.uv = TRANSFORM_TEX(i.uv, _BaseMap);
                 return o;
             }
@@ -478,6 +488,7 @@ Shader "CartoonRendering/PBRToon/Base"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "PBRToon.hlsl"
+            #include "../Library/WorldBend.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
@@ -539,6 +550,11 @@ Shader "CartoonRendering/PBRToon/Base"
 
                 VertexPositionInputs posInputs = GetVertexPositionInputs(input.positionOS.xyz);
                 VertexNormalInputs   nrmInputs = GetVertexNormalInputs(input.normalOS);
+
+                // 世界弯曲（动森式小星球）
+                posInputs.positionWS = ApplyWorldBend(posInputs.positionWS);
+                posInputs.positionCS = TransformWorldToHClip(posInputs.positionWS);
+                nrmInputs.normalWS   = ApplyWorldBendNormal(nrmInputs.normalWS, posInputs.positionWS);
 
                 output.positionCS = posInputs.positionCS;
                 output.positionWS = posInputs.positionWS;
@@ -657,6 +673,7 @@ Shader "CartoonRendering/PBRToon/Base"
             #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "../Library/WorldBend.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
@@ -687,8 +704,9 @@ Shader "CartoonRendering/PBRToon/Base"
             V DNVert(A i)
             {
                 V o;
-                o.positionCS = TransformObjectToHClip(i.positionOS.xyz);
-                o.normalWS = TransformObjectToWorldNormal(i.normalOS);
+                float3 posWS = TransformObjectToWorld(i.positionOS.xyz);
+                o.positionCS = TransformWorldToHClip(ApplyWorldBend(posWS));
+                o.normalWS = ApplyWorldBendNormal(TransformObjectToWorldNormal(i.normalOS), posWS);
                 o.uv = TRANSFORM_TEX(i.uv, _BaseMap);
                 return o;
             }
@@ -823,6 +841,7 @@ Shader "CartoonRendering/PBRToon/Base"
             #pragma fragment OutlineFrag
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "../Library/WorldBend.hlsl"
             #include "PBRToon.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
@@ -853,7 +872,8 @@ Shader "CartoonRendering/PBRToon/Base"
             {
                 V o;
                 float3 posOS = OutlineExtrude(i.positionOS.xyz, i.normalOS, _OutlineWidth);
-                o.positionCS = TransformObjectToHClip(posOS);
+                float3 posWS = ApplyWorldBend(TransformObjectToWorld(posOS)); // 描边同步弯曲
+                o.positionCS = TransformWorldToHClip(posWS);
                 return o;
             }
 

@@ -60,6 +60,7 @@ Shader "CartoonRendering/Building"
 
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "../Library/WorldBend.hlsl"
         #include "../Toon/PBRToon.hlsl"
         TEXTURE2D(_BaseMap);     SAMPLER(sampler_BaseMap);
         TEXTURE2D(_BumpMap);     SAMPLER(sampler_BumpMap);
@@ -169,6 +170,11 @@ Shader "CartoonRendering/Building"
                 VertexPositionInputs posInputs = GetVertexPositionInputs(input.positionOS.xyz);
                 VertexNormalInputs   nrmInputs = GetVertexNormalInputs(input.normalOS, input.tangentOS);
 
+                // 世界弯曲（动森式小星球）
+                posInputs.positionWS = ApplyWorldBend(posInputs.positionWS);
+                posInputs.positionCS = TransformWorldToHClip(posInputs.positionWS);
+                nrmInputs.normalWS   = ApplyWorldBendNormal(nrmInputs.normalWS, posInputs.positionWS);
+
                 output.positionCS  = posInputs.positionCS;
                 output.positionWS  = posInputs.positionWS;
                 output.normalWS    = nrmInputs.normalWS;
@@ -259,6 +265,7 @@ Shader "CartoonRendering/Building"
 
                 float3 positionWS = TransformObjectToWorld(i.positionOS.xyz);
                 float3 normalWS   = TransformObjectToWorldNormal(i.normalOS);
+                positionWS = ApplyWorldBend(positionWS); // 阴影同步弯曲
                 o.positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, _MainLightPosition.xyz));
                 o.uv = TRANSFORM_TEX(i.uv, _BaseMap);
                 return o;
@@ -313,7 +320,7 @@ Shader "CartoonRendering/Building"
                 UNITY_SETUP_INSTANCE_ID(i);
                 UNITY_TRANSFER_INSTANCE_ID(i, o);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
-                o.positionWS = TransformObjectToWorld(i.positionOS.xyz);
+                o.positionWS = ApplyWorldBend(TransformObjectToWorld(i.positionOS.xyz));
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.uv = TRANSFORM_TEX(i.uv, _BaseMap);
                 return o;
@@ -369,8 +376,8 @@ Shader "CartoonRendering/Building"
                 UNITY_TRANSFER_INSTANCE_ID(i, o);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 float3 positionWS = TransformObjectToWorld(i.positionOS.xyz);
-                o.positionCS = TransformWorldToHClip(positionWS);
-                o.normalWS   = TransformObjectToWorldNormal(i.normalOS);
+                o.positionCS = TransformWorldToHClip(ApplyWorldBend(positionWS));
+                o.normalWS   = ApplyWorldBendNormal(TransformObjectToWorldNormal(i.normalOS), positionWS);
                 o.uv = TRANSFORM_TEX(i.uv, _BaseMap);
                 return o;
             }
@@ -488,6 +495,11 @@ Shader "CartoonRendering/Building"
 
                 VertexPositionInputs posInputs = GetVertexPositionInputs(input.positionOS.xyz);
                 VertexNormalInputs   nrmInputs = GetVertexNormalInputs(input.normalOS, input.tangentOS);
+
+                // 世界弯曲（动森式小星球）
+                posInputs.positionWS = ApplyWorldBend(posInputs.positionWS);
+                posInputs.positionCS = TransformWorldToHClip(posInputs.positionWS);
+                nrmInputs.normalWS   = ApplyWorldBendNormal(nrmInputs.normalWS, posInputs.positionWS);
 
                 output.positionCS  = posInputs.positionCS;
                 output.positionWS  = posInputs.positionWS;

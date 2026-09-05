@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **World Bend (tiny-planet view)**: Animal Crossing-style round-earth effect — distant vertices sink with the square of horizontal distance from the camera
+  - New shared library `Shaders/Library/WorldBend.hlsl` (vertex bend + normal correction)
+  - New `WorldBendController` component (curvature / dead zone / normal correction, live edit-mode preview, zero cost at zero curvature)
+  - All geometry shaders in the package (PBRToon×4, water×3, grass, building) hooked in every pass, including ShadowCaster / DepthOnly / DepthNormals / GBuffer / outline
+
 ## v1.0.1
 
 ### Fixed

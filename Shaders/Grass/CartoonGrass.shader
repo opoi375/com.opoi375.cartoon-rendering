@@ -117,6 +117,7 @@ Shader "CartoonRendering/Grass/CartoonGrass"
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ProbeVolumeVariants.hlsl"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "../Library/WorldBend.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
             // ------------------------------------------------------------------
@@ -225,6 +226,7 @@ Shader "CartoonRendering/Grass/CartoonGrass"
                 localPos.xz += interOffset;
 
                 float3 posWS = rootWS + localPos;
+                posWS = ApplyWorldBend(posWS); // 世界弯曲
                 output.positionWS = posWS;
                 output.positionCS = TransformWorldToHClip(posWS);
                 output.bladeUV = float2(input.uv.x, heightFrac);
@@ -375,6 +377,7 @@ Shader "CartoonRendering/Grass/CartoonGrass"
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ProbeVolumeVariants.hlsl"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "../Library/WorldBend.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "../Toon/PBRToon.hlsl" // PackToonGBuffer
 
@@ -451,6 +454,7 @@ Shader "CartoonRendering/Grass/CartoonGrass"
                 localPos.xz += bendDir * interStrength * _InteractionPower * heightFrac * heightFrac * tuftHeight;
 
                 float3 posWS = rootWS + localPos;
+                posWS = ApplyWorldBend(posWS); // 世界弯曲
                 output.positionWS = posWS;
                 output.positionCS = TransformWorldToHClip(posWS);
                 output.bladeUV = float2(input.uv.x, heightFrac);
@@ -545,6 +549,7 @@ Shader "CartoonRendering/Grass/CartoonGrass"
             #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "../Library/WorldBend.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _RootColor;
@@ -600,7 +605,7 @@ Shader "CartoonRendering/Grass/CartoonGrass"
                 float2 bendDir = sourceDist > 0.0001 ? -toSource / max(sourceDist, 1e-4) : float2(0, 0);
                 localPos.xz += bendDir * interStrength * _InteractionPower * heightFrac * heightFrac * tuftHeight;
 
-                o.positionCS = TransformWorldToHClip(rootWS + localPos);
+                o.positionCS = TransformWorldToHClip(ApplyWorldBend(rootWS + localPos)); // 世界弯曲
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
                 o.normalWS = normalize(normalWS + float3(facing.x, 0, facing.y) * 0.15);
                 return o;
@@ -639,6 +644,7 @@ Shader "CartoonRendering/Grass/CartoonGrass"
             #pragma shader_feature EDITOR_VISUALIZATION
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "../Library/WorldBend.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/MetaInput.hlsl"
 
             CBUFFER_START(UnityPerMaterial)

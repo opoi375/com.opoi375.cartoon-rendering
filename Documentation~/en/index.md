@@ -37,6 +37,10 @@ features:
     title: Interactive Grass
     details: GPU-instanced grass fields that bend under characters and recover over time, with editor baking tools
     link: /en/grass/
+  - icon: 🌍
+    title: World Bend
+    details: Animal Crossing-style tiny-planet view — distant vertices sink with distance squared, all passes hooked so shadows stay attached, tunable curvature / dead zone / normal correction
+    link: /en/world-bend/
   - icon: 🧩
     title: SDF Toolchain
     details: UI SDF materials plus a GPU SDF generator (mask→SDF, frames→gradient) for dissolve / burn / growth effects

@@ -22,6 +22,7 @@ function sidebarZh() {
         { text: '体积云', link: '/sky/volumetric-clouds' },
         { text: '卡通水面与水下效果', link: '/water/' },
         { text: '交互草地', link: '/grass/' },
+        { text: '世界弯曲（小星球视角）', link: '/world-bend/' },
         { text: '像素化后期', link: '/effects/' },
         { text: 'SDF UI 图形', link: '/ui-sdf/' }
       ]
@@ -58,6 +59,7 @@ function sidebarEn() {
         { text: 'Volumetric Clouds', link: '/en/sky/volumetric-clouds' },
         { text: 'Cartoon Water & Underwater', link: '/en/water/' },
         { text: 'Interactive Grass', link: '/en/grass/' },
+        { text: 'World Bend (Tiny-Planet)', link: '/en/world-bend/' },
         { text: 'Pixelate Post Process', link: '/en/effects/' },
         { text: 'SDF UI Graphics', link: '/en/ui-sdf/' }
       ]

@@ -15,6 +15,7 @@
 | 水下效果 | URP 后期 Render Feature | [详情](/water/#水下后期) |
 | 像素化后期 | Volume 驱动的像素化效果 | [详情](/effects/) |
 | 交互草地 | 踩踏压弯 + 恢复的 GPU 草场 | [详情](/grass/) |
+| 世界弯曲 | 动森式小星球视角，全 Pass 接入 | [详情](/world-bend/) |
 | SDF UI 图形 | 圆角矩形 / 布尔运算 / Metaball 等 UI 材质 | [详情](/ui-sdf/) |
 | 编辑器工具 | SDF 生成器、云噪声烘焙、水面生成等 | [详情](/tools/) |
 

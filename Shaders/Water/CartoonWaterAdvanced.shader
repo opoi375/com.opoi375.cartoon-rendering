@@ -89,6 +89,7 @@ Shader "CartoonRendering/ToonWater/Advanced"
             #pragma require tessellation
 
             #include "CartoonWaterAdvanced.hlsl"
+            #include "../Library/WorldBend.hlsl"
 
             struct Attributes
             {
@@ -190,6 +191,7 @@ Shader "CartoonRendering/ToonWater/Advanced"
                 float t = _Time.y * _WaveSpeed;
                 float3 posWS = TransformObjectToWorld(posOS);
                 posWS.y += WaveHeight(posWS.xz, t) * _WaveHeight;
+                posWS = ApplyWorldBend(posWS); // 世界弯曲
 
                 output.positionWS     = posWS;
                 output.positionCS     = TransformWorldToHClip(posWS);
@@ -237,6 +239,7 @@ Shader "CartoonRendering/ToonWater/Advanced"
             #pragma target 3.5
 
             #include "CartoonWaterAdvanced.hlsl"
+            #include "../Library/WorldBend.hlsl"
 
             struct Attributes
             {
@@ -260,6 +263,7 @@ Shader "CartoonRendering/ToonWater/Advanced"
                 float t = _Time.y * _WaveSpeed;
                 float3 posWS = TransformObjectToWorld(input.positionOS.xyz);
                 posWS.y += WaveHeight(posWS.xz, t) * _WaveHeight;
+                posWS = ApplyWorldBend(posWS); // 世界弯曲
 
                 output.positionWS     = posWS;
                 output.positionCS     = TransformWorldToHClip(posWS);

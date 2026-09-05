@@ -37,6 +37,10 @@ features:
     title: 交互草地
     details: GPU 实例化草场，角色踩踏压弯、脚印恢复，编辑期烘焙工具
     link: /grass/
+  - icon: 🌍
+    title: 世界弯曲
+    details: 动森式小星球视角，远处顶点按距离平方下沉，全 Pass 接入阴影不脱节，曲率 / 死区 / 法线修正可调
+    link: /world-bend/
   - icon: 🧩
     title: SDF 工具链
     details: UI SDF 图形材质 + GPU SDF 生成器（遮罩→SDF、多帧→渐变），溶解 / 燃烧 / 生长效果

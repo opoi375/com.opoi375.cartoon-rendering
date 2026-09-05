@@ -100,6 +100,7 @@ Shader "CartoonRendering/ToonWater/Cartoon"
             #pragma target 3.5
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "../Library/WorldBend.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
@@ -146,7 +147,7 @@ Shader "CartoonRendering/ToonWater/Cartoon"
             {
                 Varyings output;
 
-                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                float3 positionWS = ApplyWorldBend(TransformObjectToWorld(input.positionOS.xyz));
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.screenPosition = ComputeScreenPos(output.positionCS);
 
