@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0] - 2026-09-06
+
+### Added
+- **世界弯曲（小星球视角 / World Bend）**：动森式圆形地球效果，远处顶点按到相机的水平距离平方下沉
+  - 新增共享库 `Shaders/Library/WorldBend.hlsl`（顶点弯曲 + 法线修正）
+  - 新增 `WorldBendController` 组件（曲率 / 死区 / 法线修正，编辑模式实时预览，曲率为 0 时零开销）
+  - 包内全部几何 shader（PBRToon×4、水面×3、草地、建筑）的所有 Pass 接入，含 ShadowCaster / DepthOnly / DepthNormals / GBuffer / 描边
+
 ## [1.0.1] - 2026-08-29
 
 ### Fixed
