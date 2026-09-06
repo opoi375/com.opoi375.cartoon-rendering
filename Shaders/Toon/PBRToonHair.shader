@@ -149,6 +149,11 @@ Shader "CartoonRendering/PBRToon/Hair"
                 VertexPositionInputs pos = GetVertexPositionInputs(input.positionOS.xyz);
                 VertexNormalInputs   nrm = GetVertexNormalInputs(input.normalOS, input.tangentOS);
 
+                // 世界弯曲（动森式小星球）
+                pos.positionWS = ApplyWorldBend(pos.positionWS);
+                pos.positionCS = TransformWorldToHClip(pos.positionWS);
+                nrm.normalWS   = ApplyWorldBendNormal(nrm.normalWS, pos.positionWS);
+
                 output.positionCS  = pos.positionCS;
                 output.positionWS  = pos.positionWS;
                 output.normalWS    = nrm.normalWS;
@@ -484,6 +489,11 @@ Shader "CartoonRendering/PBRToon/Hair"
 
                 VertexPositionInputs pos = GetVertexPositionInputs(input.positionOS.xyz);
                 VertexNormalInputs   nrm = GetVertexNormalInputs(input.normalOS, input.tangentOS);
+
+                // 世界弯曲（动森式小星球）
+                pos.positionWS = ApplyWorldBend(pos.positionWS);
+                pos.positionCS = TransformWorldToHClip(pos.positionWS);
+                nrm.normalWS   = ApplyWorldBendNormal(nrm.normalWS, pos.positionWS);
 
                 output.positionCS  = pos.positionCS;
                 output.positionWS  = pos.positionWS;

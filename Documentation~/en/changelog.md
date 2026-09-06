@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.1.1
+
+### Fixed
+- PBRToonHair ForwardLit / GBuffer vertex stages missed the world-bend injection (tangent normal variant), so hair did not sink with the body when bent
+
 ## v1.1.0
 
 ### Added

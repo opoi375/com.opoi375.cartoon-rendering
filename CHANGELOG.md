@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.1] - 2026-09-06
+
+### Fixed
+- PBRToonHair 的 ForwardLit / GBuffer 顶点阶段漏接世界弯曲（法线带 tangent 变体导致注入未命中），头发在弯曲时不跟随身体下沉
+
 ## [1.1.0] - 2026-09-06
 
 ### Added
