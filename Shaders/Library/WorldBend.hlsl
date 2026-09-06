@@ -23,12 +23,18 @@ float _WorldBendDeadZone;
 float _WorldBendBendNormals;
 
 // 计算某世界坐标点的下弯偏移量（纯量，正值 = 应下沉的高度）
-float WorldBendOffset(float3 positionWS)
+// 变体：显式传入参考点（供体积云等自带相机位置的调用方使用）
+float WorldBendOffsetFrom(float2 posXZ, float2 camXZ)
 {
-    float2 delta = positionWS.xz - _WorldSpaceCameraPos.xz;
+    float2 delta = posXZ - camXZ;
     float  d     = length(delta);
     float  w     = max(d - _WorldBendDeadZone, 0.0);
     return w * w * _WorldBendCurvature;
+}
+
+float WorldBendOffset(float3 positionWS)
+{
+    return WorldBendOffsetFrom(positionWS.xz, _WorldSpaceCameraPos.xz);
 }
 
 // 顶点弯曲：返回下沉后的世界坐标

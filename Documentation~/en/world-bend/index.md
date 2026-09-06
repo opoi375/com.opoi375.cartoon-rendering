@@ -6,6 +6,10 @@ An Animal Crossing-style "round earth" effect: vertices are bent **downward by t
 
 > Demo at `curvature = 0.005`: the character (package shader) has sunk below the "ground" with only the hat poking out; the grey cubes and default ground use URP's built-in Lit and are unaffected.
 
+![Full effect: curved ground arc, dipped sky horizon, clouds gathering toward the horizon](/worldbend/planet-look.png)
+
+> Full effect (exaggerated `curvature = 0.005`): the ground arcs like a planet, the sky gradient's horizon band dips to meet it, volumetric clouds gather softly toward the horizon without vanishing, and the character (hair included) sinks with the surface.
+
 ## How It Works
 
 ```hlsl
@@ -30,6 +34,17 @@ Add the **World Bend Controller** component to any active object in the scene (`
 | `deadZone` | 10 | Radius around the camera that stays flat (meters) |
 | `bendNormals` | true | Tilt normals so lighting follows the curvature |
 
+### Sky / Cloud Linkage
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `skyHorizonDistance` | 200 | Effective visible ground distance (m), used to derive the sky horizon dip so it aligns with the ground's edge |
+| `maxSkyDip` | 0.15 | Maximum sky horizon dip (≈8.5°); prevents extreme curvature from dragging the whole gradient into the nadir color band |
+| `cloudBendScale` | 0.35 | Weakened curvature factor for clouds. The cloud layer is much higher than the ground — full-strength droop would sink it out of view, so distant clouds gather softly toward the horizon instead |
+| `cloudMaxDroop` | 300 | Maximum cloud droop (m); distant clouds rest on a lowered but bounded shell |
+
+Only the sky gradient **bands** dip; the sun, stars and 2D clouds keep their true directions (lighting is unchanged, so nothing contradicts). The volumetric cloud base droops per-sample by horizontal distance, and the slab intersection plane shifts down accordingly to avoid clipping.
+
 The component is `[ExecuteAlways]`, so the Scene view previews the bend live in edit mode. At `curvature = 0` the cost is a single multiply-add. Disabling the component restores the global parameters automatically.
 
 ## Caveats
@@ -40,7 +55,7 @@ Collision, navigation and physics still run in the **flat**, unbent world (Anima
 
 - **Only package shaders bend.** URP's built-in Lit and Unity Terrain are unaffected — swap the ground material to a package shader (e.g. `CartoonBuilding` or `PBRToon/Base`) to bend the ground too
 - Frustum culling uses the original (unbent) bounds, so a little extra geometry is drawn in the distance (the safe direction — nothing is culled incorrectly)
-- Skybox / volumetric clouds / post-processing are not bent (they are screen-space and shouldn't be)
+- The sky and volumetric clouds follow the bend via the controller linkage (see above) — no extra setup needed
 
 ## Integrating Custom Shaders
 

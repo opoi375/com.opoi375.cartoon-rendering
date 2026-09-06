@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.0
+
+### Added
+- World Bend sky/cloud linkage: sky gradient horizon dips with curvature (maxSkyDip clamp), volumetric cloud base droops with distance (cloudBendScale weakening + cloudMaxDroop clamp), new skyHorizonDistance parameter
+
+
 ## v1.1.1
 
 ### Fixed

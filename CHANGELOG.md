@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0] - 2026-09-06
+
+### Added
+- **世界弯曲 × 天空/体积云联动**：
+  - 天空渐变地平线随曲率下沉（`_WorldBendSkyDip`，只偏移渐变分带，太阳/星星/2D 云保持真实方向），新增 `skyHorizonDistance` 与 `maxSkyDip` 钳制参数
+  - 体积云云底按采样点水平距离下垂，slab 相交底面同步下移防止裁切；新增 `cloudBendScale`（弱化系数，默认 0.35）与 `cloudMaxDroop`（最大下垂量，默认 300m），远处云向地平线聚拢而不消失
+  - `WorldBend.hlsl` 新增 `WorldBendOffsetFrom(posXZ, camXZ)` 显式参考点变体
+
 ## [1.1.1] - 2026-09-06
 
 ### Fixed

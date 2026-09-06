@@ -59,6 +59,7 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             #pragma target 3.5
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "../Library/WorldBend.hlsl"
 
             // ----------------------------------------------------------------
             // Uniforms (pushed per frame by CartoonSkyboxFeature)
@@ -72,6 +73,18 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             // x = coverage [0..1], y = base height above camera,
             // z = slab thickness,  w = world UV scale
             float4 _CloudShapeParams;
+
+            // 世界弯曲联动（WorldBendController 推送）：云层弯曲弱化系数 + 最大下垂量。
+            // 云层比地面高得多，全强度下垂会让远处云快速沉出天际，
+            // 弱化 + 钳制后云向地平线柔和聚拢但不消失。
+            float _WorldBendCloudScale;
+            float _WorldBendCloudMaxDroop;
+
+            float CloudBendDroop(float2 posXZ, float2 camXZ)
+            {
+                return min(WorldBendOffsetFrom(posXZ, camXZ) * _WorldBendCloudScale,
+                           _WorldBendCloudMaxDroop);
+            }
 
             // x = absorption (density), y = march step count,
             // z = light step count, w = detail erosion strength
@@ -296,7 +309,8 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 {
                     if (i > lightSteps) break;
                     float3 sp = p + toSun * (ls * (float)i);
-                    float h = saturate((sp.y - baseY) / thickness);
+                    // 世界弯曲：光照步进的云底同样随水平距离下垂（弱化+钳制）
+                    float h = saturate((sp.y - (baseY - CloudBendDroop(sp.xz, camXZ))) / thickness);
                     acc += CloudDensity(sp, h, windOffset, camXZ, lod, 0.05) * ls;
                 }
                 return exp(-acc * _CloudMarchParams.x * 0.035);
@@ -336,6 +350,16 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 const float kMaxDist = 24000.0;
                 float tA = (baseY - camPos.y) / viewDir.y;
                 float tB = (topY  - camPos.y) / viewDir.y;
+
+                // 世界弯曲联动：远处云层随“地面”下垂，云底变为
+                // baseY - k·d²（d = 到相机的水平距离）。按射线到达平板层
+                // 远端的水平距离估算下垂量，把相交底平面同步下移，
+                // 防止下垂后的云被平直底面裁掉。
+                float droopFar  = min(WorldBendOffsetFrom(camPos.xz + viewDir.xz * max(max(tA, tB), 0.0), camPos.xz)
+                                      * _WorldBendCloudScale, _WorldBendCloudMaxDroop);
+                float bentBaseY = baseY - droopFar;
+                if (droopFar > 0.0) tA = (bentBaseY - camPos.y) / viewDir.y;
+
                 float tStart = max(min(tA, tB), 0.0);
                 // Aerial perspective kills everything beyond ~16 cloud
                 // altitudes (see the alpha fade at the bottom of Frag), so
@@ -399,7 +423,8 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                     if (s >= marchSteps) break;
                     float  t   = tStart + jitter + ((float)s + 0.5) * stepLen;
                     float3 p   = camPos + viewDir * t;
-                    float  h01 = saturate((p.y - baseY) / thickness);
+                    // 世界弯曲：按采样点的水平距离求云底下垂量（弱化+钳制）
+                    float  h01 = saturate((p.y - (baseY - CloudBendDroop(p.xz, camPos.xz))) / thickness);
                     // Pixel-footprint undersampling term: at half-res one
                     // RT texel is ~2 screen px, so its world size at
                     // distance t is ~2t/RTHeight. Order-of-magnitude LOD

@@ -117,6 +117,10 @@ Shader "CartoonRendering/CartoonSkyboxFullscreen"
             TEXTURE2D(_CartoonVolumetricCloudRT); SAMPLER(sampler_CartoonVolumetricCloudRT);
             float  _CartoonHasVolumetricClouds;
 
+            // 世界弯曲联动：天空渐变地平线倾角（WorldBendController 推送，0 = 不偏移）。
+            // 只作用于渐变分带；太阳 / 星星 / 云层保持真实方向，与不变的光照一致。
+            float  _WorldBendSkyDip;
+
             float4 _CartoonTopColor;
             float4 _CartoonMiddleColor;
             float4 _CartoonBottomColor;
@@ -447,7 +451,7 @@ Shader "CartoonRendering/CartoonSkyboxFullscreen"
                 float3 viewDirWS = normalize(unprojected.xyz / unprojected.w
                                              - _WorldSpaceCameraPos.xyz);
 
-                float vertical = saturate(viewDirWS.y * 0.5 + 0.5);
+                float vertical = saturate((viewDirWS.y - _WorldBendSkyDip) * 0.5 + 0.5);
 
                 float3 sky = EvaluateSkyGradient(vertical);
                 float3 clouds = EvaluateClouds(viewDirWS);

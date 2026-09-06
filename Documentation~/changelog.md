@@ -1,5 +1,11 @@
 # 更新日志
 
+## v1.2.0
+
+### 新增
+- 世界弯曲 × 天空/体积云联动：天空渐变地平线下沉（maxSkyDip 钳制），体积云底随距离下垂（cloudBendScale 弱化 + cloudMaxDroop 钳制），新增 skyHorizonDistance 参数
+
+
 ## v1.1.1
 
 ### 修复
