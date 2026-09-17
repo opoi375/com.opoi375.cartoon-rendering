@@ -41,6 +41,10 @@ features:
     title: World Bend
     details: Animal Crossing-style tiny-planet view — distant vertices sink with distance squared, all passes hooked so shadows stay attached, tunable curvature / dead zone / normal correction
     link: /en/world-bend/
+  - icon: 🔦
+    title: Volumetric Light (God Rays)
+    details: Screen-space ray marching with main-light shadow map sampling — real scattering, not a radial-blur fake. Half resolution with a depth-aware upsample, plus cartoon banding
+    link: /en/volumetric-light/
   - icon: 🔠
     title: LED Dot-Matrix Text
     details: Render any text as an LED dot-matrix sign — fully procedural round dots, fwidth anti-aliasing, runtime text-mask baking, HDR glow with scan line and per-dot flicker

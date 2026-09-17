@@ -13,6 +13,7 @@
 //  - 材质 / VolumeProfile 是生成物，每次重跑都会重新上参数，保证结果一致
 
 using UnityEditor;
+using UnityEditor.Rendering;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -59,7 +60,7 @@ namespace CartoonRendering.Editor
         [MenuItem("Tools/LED/Create Demo Scene")]
         public static void CreateDemoScene()
         {
-            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+            if (!PrepareForNewScene()) return;
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             Build();
@@ -74,8 +75,26 @@ namespace CartoonRendering.Editor
             Debug.Log($"[LedDotMatrixSceneBuilder] 演示场景已生成：{ScenePath}");
         }
 
-        static void RebakeAll()
+        /// <summary>
+        /// 新建演示场景前的准备工作。
+        ///
+        /// 【不要】用 EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()：
+        /// 它会在有脏场景时弹出模态对话框，而本方法经常是从脚本 / 自动化
+        /// （UnitySkills 的 ExecuteMenuItem、CI 等）里调的 —— 模态框没人点，
+        /// 编辑器主线程就被堵死了。这里改成静默存盘，存不了（没有文件路径的
+        /// 未命名场景）就中止并报错。
+        /// </summary>
+        static bool PrepareForNewScene()
         {
+            if (EditorSceneManager.SaveOpenScenes())
+                return true;
+
+            Debug.LogError("[LedDotMatrixSceneBuilder] 有未保存且没有文件路径的场景，" +
+                           "无法静默保存，已中止。请先手动保存或另存该场景后再生成演示场景。");
+            return false;
+        }
+
+        static void RebakeAll()        {
             foreach (var baker in Object.FindObjectsByType<LedTextMaskBaker>())
                 baker.Bake();
         }
@@ -270,28 +289,40 @@ namespace CartoonRendering.Editor
 
         static void PopulateProfile(VolumeProfile profile)
         {
-            var bloom = profile.Add<Bloom>(true);
+            var bloom = AddComponent<Bloom>(profile);
             bloom.threshold.Override(0.85f);
             bloom.intensity.Override(1.15f);
             bloom.scatter.Override(0.78f);
             bloom.tint.Override(new Color(0.86f, 0.93f, 1f));
 
-            var tone = profile.Add<Tonemapping>(true);
+            var tone = AddComponent<Tonemapping>(profile);
             tone.mode.Override(TonemappingMode.ACES);
 
-            var ca = profile.Add<ColorAdjustments>(true);
+            var ca = AddComponent<ColorAdjustments>(profile);
             ca.postExposure.Override(0.05f);
             ca.contrast.Override(14f);
             ca.saturation.Override(-14f);
 
-            var vig = profile.Add<Vignette>(true);
+            var vig = AddComponent<Vignette>(profile);
             vig.intensity.Override(0.38f);
             vig.smoothness.Override(0.5f);
 
-            var grain = profile.Add<FilmGrain>(true);
+            var grain = AddComponent<FilmGrain>(profile);
             grain.type.Override(FilmGrainLookup.Medium1);
             grain.intensity.Override(0.22f);
             grain.response.Override(0.7f);
+        }
+
+        /// <summary>
+        /// 把一个 Volume 覆盖项加进 profile 并【写成子资产】。
+        ///
+        /// 必须用 VolumeProfileFactory：直接调 profile.Add&lt;T&gt;() 只会建一个内存
+        /// 实例，它不在任何资产里，序列化时会变成 fileID: 0 —— 当前会话里看着是好的，
+        /// 场景一重开 Volume 覆盖项就全没了。
+        /// </summary>
+        static T AddComponent<T>(VolumeProfile profile) where T : VolumeComponent
+        {
+            return VolumeProfileFactory.CreateVolumeComponent<T>(profile, overrides: true, saveAsset: false);
         }
 
         // ------------------------------------------------------------------

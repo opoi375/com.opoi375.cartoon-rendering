@@ -41,3 +41,13 @@ Grass Field Tool：编辑期生成草场布局、烘焙交互数据，见[交互
 - **Tools > LED > Dump Mask PNG**：诊断用，导出烘焙出来的文字遮罩并打印材质 / 网格状态
 
 生成的材质与 Volume Profile 落在 `Assets/CartoonRendering/LED/`。详见 [LED 点阵文字屏](/led/)。
+
+## 体积光
+
+- **Tools > Volumetric Light > Setup In Renderer**：把 VolumetricLightFeature 一键写进当前激活的 URP 渲染器
+- **Tools > Volumetric Light > Create Demo Scene**：生成并保存演示场景到 `Assets/Scenes/VolumetricLight.unity`
+- **Tools > Volumetric Light > Build In Current Scene**：只在当前场景重建，不写场景文件
+- **Tools > Volumetric Light > Dump State**：诊断用，打印渲染器 / 主光 / 管线 / Volume / shader 状态
+- **Tools > Volumetric Light > Debug/**：切换调试视图（Shadow / Steps / Scene Depth），**阴影接不上时首选 `Shadow`**
+
+演示场景的材质与 Volume Profile 落在 `Assets/CartoonRendering/VolumetricLight/`。详见 [体积光（上帝光）](/volumetric-light/)。

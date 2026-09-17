@@ -41,3 +41,13 @@ Grass Field Tool: generate layouts and bake interaction data at edit time. See [
 - **Tools > LED > Dump Mask PNG**: diagnostics — exports the baked text mask and logs material / mesh state
 
 Generated materials and the Volume Profile land in `Assets/CartoonRendering/LED/`. See [LED Dot-Matrix Text](/en/led/).
+
+## Volumetric Light
+
+- **Tools > Volumetric Light > Setup In Renderer**: writes VolumetricLightFeature into the active URP renderer in one click
+- **Tools > Volumetric Light > Create Demo Scene**: builds and saves a demo scene to `Assets/Scenes/VolumetricLight.unity`
+- **Tools > Volumetric Light > Build In Current Scene**: rebuilds in the current scene only, without writing a scene file
+- **Tools > Volumetric Light > Dump State**: diagnostics — logs renderer / main light / pipeline / Volume / shader state
+- **Tools > Volumetric Light > Debug/**: switch debug views (Shadow / Steps / Scene Depth). **Start with `Shadow` when the shafts look wrong**
+
+The demo scene's materials and Volume Profile land in `Assets/CartoonRendering/VolumetricLight/`. See [Volumetric Light (God Rays)](/en/volumetric-light/).

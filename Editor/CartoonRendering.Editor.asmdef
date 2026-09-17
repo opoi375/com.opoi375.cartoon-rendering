@@ -3,6 +3,7 @@
     "rootNamespace": "CartoonRendering.Editor",
     "references": [
         "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Core.Editor",
         "Unity.RenderPipelines.Universal.Runtime",
         "CartoonRendering.Runtime"
     ],

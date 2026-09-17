@@ -41,6 +41,10 @@ features:
     title: 世界弯曲
     details: 动森式小星球视角，远处顶点按距离平方下沉，全 Pass 接入阴影不脱节，曲率 / 死区 / 法线修正可调
     link: /world-bend/
+  - icon: 🔦
+    title: 体积光（上帝光）
+    details: 屏幕空间光线步进 + 主光阴影图采样，真散射而非径向模糊伪影，半分辨率 + 深度感知上采样，另有卡通分层
+    link: /volumetric-light/
   - icon: 🔠
     title: LED 点阵文字屏
     details: 把任意文字渲染成 LED 点阵屏 —— 圆点纯程序化生成、fwidth 抗锯齿、运行时烘焙文字遮罩，HDR 辉光 + 扫描线 + 逐点闪烁

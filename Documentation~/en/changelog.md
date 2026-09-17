@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.4.0
+
+### Added
+- **Volumetric light (god rays)**: screen-space ray marching with main-light shadow map sampling — real scattering, not a radial-blur fake
+  - Half-resolution march (Beer's law + Henyey-Greenstein phase function) → 3×3 tent kernel bilateral upsample weighted by depth similarity → additive composite. The scattering's alpha channel doubles as scene depth for the depth-aware filter
+  - `VolumetricLight` volume component: intensity / density / anisotropy / max distance / height fog / shadow strength / step count / jitter / dust noise / cartoon banding. `Intensity` defaults to 0 so the effect never turns on without an explicit Volume override
+  - Built-in debug views — the `Shadow` mode tells you whether the main light shadow keywords are wired up; when they are not, the effect silently degrades into uniform fog
+  - Editor tools under `Tools > Volumetric Light > …` (install feature / demo scene / diagnostics / debug views)
+
+### Fixed
+- **VolumeProfile sub-assets were never persisted**: both demo scene builders used `profile.Add<T>()`, which only creates an in-memory instance — it serialized as `fileID: 0`, so the overrides looked fine in the session but vanished as soon as the scene was reopened
+- **Demo scene builders could hang the editor**: `SaveCurrentModifiedScenesIfUserWantsTo()` pops a modal dialog when called from a script, blocking the main thread forever if nobody clicks it
+
 ## v1.3.0
 
 ### Added

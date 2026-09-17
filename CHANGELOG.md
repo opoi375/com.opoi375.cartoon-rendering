@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.4.0] - 2026-09-17
+
+### Added
+- **体积光（上帝光 / 光柱）**：屏幕空间光线步进 + 主光阴影图采样，真散射而非径向模糊伪造
+  - 新增 `Runtime/VolumetricLight/VolumetricLightPass.cs`（RenderGraph）：半分辨率步进（Beer 定律累积透射率 + Henyey-Greenstein 相位函数），再以 3×3 帐篷核按深度相似度双边上采样后叠加合成；散射的 alpha 通道顺便存场景视图深度用于深度感知滤波
+  - 新增 `VolumetricLight` Volume 组件：强度 / 密度 / 各向异性 / 最远距离 / 高度雾 / 阴影压制 / 步进 / 抖动 / 尘埃噪声 / 卡通分层，共 17 个参数；`Intensity` 默认 0（VolumeManager 对未被覆盖的组件也返回默认实例，默认非 0 会变成「没放 Volume 也生效」）
+  - 新增内置调试视图（Off / Shadow / Steps / SceneDepth）—— `Shadow` 模式用来确认主光阴影关键字有没有接上，接不上时效果会静默退化成均匀雾
+  - 新增 `Shaders/PostProcessing/VolumetricLight.shader` + `VolumetricLightCommon.hlsl`，自带全屏三角形顶点着色器（不依赖 `Blit.hlsl` / `TextureXR.hlsl` / `_BlitScaleBias`）
+  - 新增编辑器工具 `Tools > Volumetric Light > …`（Setup In Renderer / Create Demo Scene / Build In Current Scene / Dump State / Debug）
+  - 新增文档页 [体积光（上帝光）](/volumetric-light/)
+
+### Fixed
+- **`VolumeProfile` 子资产未落盘**：两个演示场景构建器原来用 `profile.Add<T>()`，它只创建内存实例、不会写进资产，序列化后变成 `fileID: 0` —— 当前会话里看着正常，场景一重开 Volume 覆盖项全丢。改用 `VolumeProfileFactory.CreateVolumeComponent`
+- **演示场景构建器卡死编辑器**：`SaveCurrentModifiedScenesIfUserWantsTo()` 从脚本 / 自动化调用时会弹模态对话框，无人点击则主线程永久阻塞。改用静默的 `EditorSceneManager.SaveOpenScenes()`
+- Editor 程序集补上 `Unity.RenderPipelines.Core.Editor` 引用
+
 ## [1.3.0] - 2026-09-17
 
 ### Added
