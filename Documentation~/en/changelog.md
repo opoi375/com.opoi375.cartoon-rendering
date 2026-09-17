@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.0
+
+### Added
+- **LED dot-matrix text**: render any text as an LED dot-matrix sign — dots are fully procedural (UV gridding + circle per cell), `fwidth` analytic anti-aliasing, HDR glow with scan line and dual-sine per-dot flicker
+  - `LedTextMaskBaker` bakes text into a single-channel mask texture at runtime; no font asset, no extra camera, supports CJK and runtime text changes
+  - `LedCurvedScreen` generates a curved screen mesh with arc-length uniform UVs, so dot spacing stays even across the curve
+  - Editor tools under `Tools > LED > …`; generated assets land in `Assets/CartoonRendering/LED/`
+
 ## v1.2.0
 
 ### Added

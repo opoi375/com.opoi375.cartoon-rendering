@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.0] - 2026-09-17
+
+### Added
+- **LED 点阵文字屏（LedDotMatrix）**：把任意文字渲染成 LED 点阵屏
+  - 新增 `Shaders/LED/LEDDotMatrixText.shader`（`CartoonRendering/LED/DotMatrix Text`）：UV 网格化 + 程序化圆形点阵 + 遮罩采样 + UV 滚动 + 双频正弦闪烁；点边缘用 `fwidth` 做解析抗锯齿，避免远距离 / 斜视角摩尔纹
+  - 新增 `LedTextMaskBaker` 组件：走 `Font.GetCharacterInfo` 把字形位图直接拼成单通道遮罩纹理，不依赖字体资产与额外相机，支持运行时换文案与中文
+  - 新增 `LedCurvedScreen` 组件：程序化弧面屏网格，UV 按弧长均匀展开（点距在弧面上仍等距），法线朝向自纠正
+  - 新增编辑器工具 `Tools > LED > Create Demo Scene / Build In Current Scene / Dump Mask PNG`，生成物落在 `Assets/CartoonRendering/LED/`
+  - 新增文档页 [LED 点阵文字屏](/led/)
+
 ## [1.2.0] - 2026-09-06
 
 ### Added

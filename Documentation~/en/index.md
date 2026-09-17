@@ -41,6 +41,10 @@ features:
     title: World Bend
     details: Animal Crossing-style tiny-planet view — distant vertices sink with distance squared, all passes hooked so shadows stay attached, tunable curvature / dead zone / normal correction
     link: /en/world-bend/
+  - icon: 🔠
+    title: LED Dot-Matrix Text
+    details: Render any text as an LED dot-matrix sign — fully procedural round dots, fwidth anti-aliasing, runtime text-mask baking, HDR glow with scan line and per-dot flicker
+    link: /en/led/
   - icon: 🧩
     title: SDF Toolchain
     details: UI SDF materials plus a GPU SDF generator (mask→SDF, frames→gradient) for dissolve / burn / growth effects

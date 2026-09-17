@@ -24,6 +24,7 @@ function sidebarZh() {
         { text: '交互草地', link: '/grass/' },
         { text: '世界弯曲（小星球视角）', link: '/world-bend/' },
         { text: '像素化后期', link: '/effects/' },
+        { text: 'LED 点阵文字屏', link: '/led/' },
         { text: 'SDF UI 图形', link: '/ui-sdf/' }
       ]
     },
@@ -61,6 +62,7 @@ function sidebarEn() {
         { text: 'Interactive Grass', link: '/en/grass/' },
         { text: 'World Bend (Tiny-Planet)', link: '/en/world-bend/' },
         { text: 'Pixelate Post Process', link: '/en/effects/' },
+        { text: 'LED Dot-Matrix Text', link: '/en/led/' },
         { text: 'SDF UI Graphics', link: '/en/ui-sdf/' }
       ]
     },

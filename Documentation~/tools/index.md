@@ -33,3 +33,11 @@ Grass Field Tool：编辑期生成草场布局、烘焙交互数据，见[交互
 ## 水下设置
 
 **CartoonRendering > Underwater > Setup Underwater Post Process**：一键给当前 URP Renderer 添加水下后期 Feature。
+
+## LED 点阵屏
+
+- **Tools > LED > Create Demo Scene**：一键生成 LED 点阵文字屏演示场景（含材质、Volume Profile、相机与灯光），保存到 `Assets/Scenes/LEDDotMatrix.unity`
+- **Tools > LED > Build In Current Scene**：只在当前场景里重建，不写场景文件
+- **Tools > LED > Dump Mask PNG**：诊断用，导出烘焙出来的文字遮罩并打印材质 / 网格状态
+
+生成的材质与 Volume Profile 落在 `Assets/CartoonRendering/LED/`。详见 [LED 点阵文字屏](/led/)。

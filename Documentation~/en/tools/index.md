@@ -33,3 +33,11 @@ Grass Field Tool: generate layouts and bake interaction data at edit time. See [
 ## Underwater Setup
 
 **CartoonRendering > Underwater > Setup Underwater Post Process**: adds the underwater post-process Feature to the current URP Renderer in one click.
+
+## LED Dot-Matrix Screen
+
+- **Tools > LED > Create Demo Scene**: builds a complete LED dot-matrix demo scene (materials, Volume Profile, camera and lighting) and saves it to `Assets/Scenes/LEDDotMatrix.unity`
+- **Tools > LED > Build In Current Scene**: rebuilds in the current scene only, without writing a scene file
+- **Tools > LED > Dump Mask PNG**: diagnostics — exports the baked text mask and logs material / mesh state
+
+Generated materials and the Volume Profile land in `Assets/CartoonRendering/LED/`. See [LED Dot-Matrix Text](/en/led/).
