@@ -27,3 +27,11 @@ Per frame:
 3. Assign player / interactor Transforms to the interaction source list
 
 Blades are stylized cartoon shapes with wind sway, color gradient and trample spring-back.
+
+## Debugging
+
+| Toggle | Description |
+| --- | --- |
+| `GrassField.VerboseDebug` | Logs footprint / interaction strength every 2 seconds. Turn it on when blades don't react to the player or don't spring back — default is **off** to keep the console clean |
+
+The interaction RT is created as `R8 + Linear`: an `R8` texture defaults to sRGB, and platforms without `R8_SRGB` support silently fall back to `RGBA32` with a warning.

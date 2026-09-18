@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.1] - 2026-09-18
+
+### Fixed
+- **交互纹理在部分平台静默回退**：`GrassField` 的交互 RT 用 `R8` 创建时默认按 sRGB 申请，不支持 `R8_SRGB` 的平台会回退成 `RGBA32` 并打警告。改为显式 `RenderTextureReadWrite.Linear`
+- **`WorldBendController` 命名空间不一致**：它是包内唯一一个 `Opoi375.CartoonRendering` 命名空间的脚本，只 `using CartoonRendering` 的脚本会找不到该类型。统一为 `CartoonRendering`
+
+### Changed
+- `GrassField` 新增 `VerboseDebug` 开关（默认**关**）。此前每 2 秒无条件打印脚印 / 交互强度日志，正式运行会刷屏
+- 示例天空预设重新调参：`Data/SkySetting/CartoonProceduralSky.asset` 体积云（覆盖度 1.0 / 密度 2.74 / 步进 18 / 细节 0.173）与 `Materials/CartoonSky.mat` 太阳朝向、时刻
+
 ## [1.4.0] - 2026-09-17
 
 ### Added

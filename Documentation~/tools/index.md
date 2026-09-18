@@ -50,4 +50,15 @@ Grass Field Tool：编辑期生成草场布局、烘焙交互数据，见[交互
 - **Tools > Volumetric Light > Dump State**：诊断用，打印渲染器 / 主光 / 管线 / Volume / shader 状态
 - **Tools > Volumetric Light > Debug/**：切换调试视图（Shadow / Steps / Scene Depth），**阴影接不上时首选 `Shadow`**
 
-演示场景的材质与 Volume Profile 落在 `Assets/CartoonRendering/VolumetricLight/`。详见 [体积光（上帝光）](/volumetric-light/)。
+演示场景的材质与 Volume Profile 落在 `Assets/CartoonRendering/VolumetricLight/`。详见[体积光（上帝光）](/volumetric-light/)。
+
+### 工厂内景演示脚本
+
+演示工程侧还带了一套「废弃工厂内景」脚本（位于 `Assets/CartoonRendering/VolumetricLight/Editor/`，不随包发布 —— 做自己的场景时可以照抄思路）：
+
+- **Tools > Volumetric Light > Create Factory Interior Scene**：用 Blender 程序化生成的 `FactoryRoom.fbx`（16m × 26m × 7.5m 厂房，多格高窗 + 天窗 + 桁架）搭场景，保存到 `Assets/Scenes/FactoryInterior.unity`
+- **Tools > Volumetric Light > Build Factory In Current Scene** / **Dump Factory Model**：只在当前场景重建 / 打印模型每个子物体的包围盒
+- **Tools > Volumetric Light > Cycle Factory Viewpoint**：在三个预设机位间循环（暗厅侧看 / 部分逆光 / 光束扇面）
+- **Tools > Volumetric Light > GI/Configure | Bake (Async) | Check Progress | Reattach Lighting Data | Clear Baked Data**：配静态标记与 Mixed 灯光 → 异步烘间接光 → 查进度 / 重挂 Lighting Data → 清数据
+
+模型本身由 `Assets/CartoonRendering/VolumetricLight/Blender/factory_room.py` 生成（跑法与参数见同目录 `README.md`）；改房间尺寸后 Unity 侧的太阳方向与机位（`FactoryInteriorSceneBuilder` 顶部的 `SunDir` / `ViewPos`）需要跟着调。间接光烘焙的注意事项见[体积光（上帝光）](/volumetric-light/)。

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Opoi375.CartoonRendering
+namespace CartoonRendering
 {
     /// <summary>
     /// 动森式"小星球"世界弯曲的全局控制器。

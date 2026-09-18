@@ -71,6 +71,9 @@ namespace CartoonRendering
         public Material InteractionBakeMaterial;
 
         [Header("调试")]
+        [Tooltip("打开后每 2 秒输出一次脚印/交互强度日志，仅排查问题时使用")]
+        public bool VerboseDebug = false;
+
         public bool DrawFieldGizmo = true;
 
         // ----- 运行时状态 --------------------------------------------------
@@ -157,9 +160,9 @@ namespace CartoonRendering
             // 2. 恢复衰减（CPU 真相）
             _field.Tick(Time.deltaTime, RecoverySpeed);
 
-            // 调试：每 2 秒输出交互状态
+            // 调试：每 2 秒输出交互状态（默认关，避免刷屏）
             _debugTimer += Time.deltaTime;
-            if (_debugTimer >= 2f)
+            if (VerboseDebug && _debugTimer >= 2f)
             {
                 _debugTimer = 0f;
                 float sampleStrength = source != null
@@ -208,7 +211,10 @@ namespace CartoonRendering
         // ------------------------------------------------------------------
         private void CreateInteractionTexture()
         {
-            _interactionTexture = new RenderTexture(InteractionTextureSize, InteractionTextureSize, 0, RenderTextureFormat.R8)
+            // Linear 读写：R8 默认会被当成 sRGB，部分平台不支持 R8_SRGB
+            // 会回退到 RGBA32 并打警告，显式指定 Linear 避免。
+            _interactionTexture = new RenderTexture(InteractionTextureSize, InteractionTextureSize, 0,
+                                                   RenderTextureFormat.R8, RenderTextureReadWrite.Linear)
             {
                 name = "GrassInteraction",
                 filterMode = FilterMode.Bilinear,

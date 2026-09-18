@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.4.1
+
+### Fixed
+- **Interaction texture silently downgraded on some platforms**: `GrassField` created its interaction RT as `R8`, which defaults to sRGB — platforms without `R8_SRGB` support fall back to `RGBA32` and log a warning. Now created explicitly with `RenderTextureReadWrite.Linear`
+- **`WorldBendController` used an inconsistent namespace**: it was the only script in the package under `Opoi375.CartoonRendering`, so scripts that merely `using CartoonRendering` could not find the type. Unified to `CartoonRendering`
+
+### Changed
+- `GrassField` gained a `VerboseDebug` toggle (default **off**). It used to log footprint / interaction strength every 2 seconds unconditionally, which spammed the console in real runs
+- Re-tuned sky presets: volumetric cloud parameters in `CartoonProceduralSky.asset` and the sun direction / time of day in `CartoonSky.mat`
+
 ## v1.4.0
 
 ### Added

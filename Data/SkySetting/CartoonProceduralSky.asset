@@ -30,19 +30,19 @@ MonoBehaviour:
   cloudTexture: {fileID: 0}
   volumetricCloudsEnabled: 1
   volCloudNoiseTexture: {fileID: 11700000, guid: 91f0fe2079f5a1e4dbfc1acf6045de32, type: 2}
-  volCloudCoverage: 0.858
+  volCloudCoverage: 1
   volCloudBaseHeight: 1239
   volCloudThickness: 619
   volCloudScale: 0.0001
-  volCloudDensity: 4
-  volCloudMarchSteps: 48
+  volCloudDensity: 2.74
+  volCloudMarchSteps: 18
   volCloudLightSteps: 5
-  volCloudDetail: 0
-  volCloudWindSpeed: 27
-  volCloudShadeSteps: 6
-  volCloudShadeSmooth: 0.5
-  volCloudSilverIntensity: 1.053
-  volCloudSilverPower: 2.32
+  volCloudDetail: 0.173
+  volCloudWindSpeed: 8.9
+  volCloudShadeSteps: 4.83
+  volCloudShadeSmooth: 0.396
+  volCloudSilverIntensity: 1.009
+  volCloudSilverPower: 3.79
   volCloudTemporalEnabled: 1
   volCloudTemporal: 0.9
   topColor: {r: 0.2, g: 0.5, b: 1, a: 1}

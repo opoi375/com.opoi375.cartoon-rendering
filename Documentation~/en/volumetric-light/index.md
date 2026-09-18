@@ -98,6 +98,17 @@ Troubleshooting order: `Shadow` → check the shadows, `Scene Depth` → check t
 
 The demo scene's materials and Volume Profile land in `Assets/CartoonRendering/VolumetricLight/`.
 
+## Indoor shafts in practice (factory demo)
+
+The demo project's `Assets/Scenes/FactoryInterior.unity` (builder scripts under "Factory Interior Demo Scripts" in [Editor Tools](/en/tools/)) applies these settings to an interior scene. Traps worth knowing:
+
+- **Keep the main light `Mixed`.** The effect computes shafts from the main light's **realtime shadow map**; if you set the sun to `Baked` there is no realtime shadow at runtime, visibility reads as "lit" everywhere, and the shafts disappear entirely — degrading into uniform fog. `Mixed + Baked Indirect` is the right combo: indirect light is baked, direct light and shadows stay realtime
+- **Be generous with indirect intensity.** Measured at `Indirect Scale = 1.0` the lightmap values were only ~0.05, invisible on dark surfaces; 3 – 4 is what lifts shadowed walls from pure black to dark grey
+- **Don't look straight into the sun.** The HG forward-scattering peak washes the whole frame out in cream white; viewing from the side is what gives you distinct, individual shafts
+- **Keep the camera in shadow.** When the camera itself stands in lit space, the fog all along the view ray is bright, and the shafts have no contrast against the background
+- **Multi-pane windows** (mullions + transoms) slice the incoming light into a regular array of shafts — the most attractive configuration for volumetric light
+- **A low sun angle** (~26° elevation) is what makes the shafts long enough to fill the room
+
 ## How it works
 
 1. **Ray reconstruction** — restore the view-space position from the depth buffer and build a world-space ray, with separate paths for perspective and orthographic (an ortho camera's position is not on the ray, so it cannot be the origin)

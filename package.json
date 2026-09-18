@@ -1,6 +1,6 @@
 {
   "name": "com.opoi375.cartoon-rendering",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "displayName": "Cartoon Rendering",
   "description": "A stylized cartoon rendering toolkit for Unity URP: toon building/water/grass shaders, procedural cartoon sky with time-of-day, volumetric clouds and volumetric god rays, underwater post-process, pixelate post-process, SDF UI shapes, interactive grass field tools, and LED dot-matrix text screens.",
   "unity": "6000.5",
