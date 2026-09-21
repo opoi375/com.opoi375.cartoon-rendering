@@ -4,6 +4,8 @@
 
 The text is not *drawn*, it is *dotted*: a text mask decides which LEDs on the grid light up.
 
+![LED dot-matrix sign reading SYSTEM ONLINE — round dots, scan line and HDR bloom](/led/led-sign.webp)
+
 ## Features
 
 - **Fully procedural dots** — each dot comes from `length(frac(uv)) + smoothstep`; no dot-matrix texture needed

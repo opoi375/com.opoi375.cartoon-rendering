@@ -4,6 +4,8 @@
 
 文字本身不是「画」出来的，而是**点**出来的：一张文字遮罩图决定网格上每个 LED 的亮灭。
 
+![LED 点阵屏：SYSTEM ONLINE，圆点 + 扫描线 + HDR 辉光](/led/led-sign.webp)
+
 ## 特点
 
 - **纯程序化点阵** —— 圆点由 `length(frac(uv)) + smoothstep` 生成，不需要任何点阵贴图

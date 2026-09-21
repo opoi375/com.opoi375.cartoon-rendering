@@ -2,6 +2,8 @@
 
 ## Two Water Shaders
 
+![Cartoon water: analytic waves + depth foam, with reeds and cottages at the shore](/water/surface.webp)
+
 ### CartoonWaterSimple — Waves
 
 Built-in **distance-LOD tessellation**: hull/domain stages subdivide triangles by camera distance, then displace vertices with an analytic wave field.
@@ -30,6 +32,8 @@ Three sample materials ship in `Materials/CartoonWater*.mat`.
 ## Underwater Post Process
 
 `UnderwaterPostProcessFeature`: cartoon fog once the camera goes below the surface.
+
+![Underwater post process: colder with depth, distant objects fading into blue-green fog](/water/underwater.webp)
 
 **Setup**: menu **CartoonRendering > Underwater > Setup Underwater Post Process**, or add the Renderer Feature manually. The material is built lazily at runtime — no asset setup needed.
 

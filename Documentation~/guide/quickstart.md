@@ -29,3 +29,13 @@
 曲面细分会处理网格密度 —— 一个 4 顶点 Quad 和 1000×1000 网格效果相同，网格只提供轮廓。
 
 泡沫需要相机开启 Depth Texture，见[卡通水面](/water/)。
+
+## 4. 做完长什么样
+
+把上面三步放进同一个场景，就是文档里这套展示场景 —— 同一座小岛的三个时段：
+
+| 正午 | 黄昏 | 夜晚 |
+| --- | --- | --- |
+| ![正午的村庄](/showcase/noon.webp) | ![黄昏的村庄](/showcase/sunset.webp) | ![夜晚的村庄](/showcase/night.webp) |
+
+> 展示场景本体在游戏工程里（`Assets/Scenes/CartoonShowcase.unity`），包内只带各模块自己的示例资产。

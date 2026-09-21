@@ -2,6 +2,8 @@
 
 GPU-instanced cartoon grass fields with **trample bending and automatic recovery**.
 
+![Interactive grass: blades bend as the character walks through and recover over time](/grass/field.webp)
+
 ## How It Works
 
 Per frame:

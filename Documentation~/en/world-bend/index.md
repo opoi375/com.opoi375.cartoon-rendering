@@ -8,6 +8,10 @@ An Animal Crossing-style "round earth" effect: vertices are bent **downward by t
 
 ![Full effect: curved ground arc, dipped sky horizon, clouds gathering toward the horizon](/worldbend/planet-look.png)
 
+The whole showcase island at `curvature = 0.0169`: lake, village and forest wrapped onto a single ball.
+
+![The showcase island as a tiny planet: lake, village and forest on a sphere](/showcase/tiny-planet.webp)
+
 > Full effect (exaggerated `curvature = 0.005`): the ground arcs like a planet, the sky gradient's horizon band dips to meet it, volumetric clouds gather softly toward the horizon without vanishing, and the character (hair included) sinks with the surface.
 
 ## How It Works

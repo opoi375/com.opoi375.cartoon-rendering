@@ -4,6 +4,8 @@
 
 This is not a screen-space radial blur fake: every step genuinely asks "is this point in space occluded?", so the shaft shape is driven entirely by scene geometry and lighting — move an occluder and the shafts follow.
 
+![Factory interior: sunlight through vertical window slits, cut into a regular array of shafts](/volumetric-light/godrays.webp)
+
 ## Features
 
 - **Real volumetric scattering** — view-ray marching + main light shadow map sampling, not a post-process glow
@@ -108,6 +110,12 @@ The demo project's `Assets/Scenes/FactoryInterior.unity` (builder scripts under 
 - **Keep the camera in shadow.** When the camera itself stands in lit space, the fog all along the view ray is bright, and the shafts have no contrast against the background
 - **Multi-pane windows** (mullions + transoms) slice the incoming light into a regular array of shafts — the most attractive configuration for volumetric light
 - **A low sun angle** (~26° elevation) is what makes the shafts long enough to fill the room
+
+Baked indirect before and after (same camera, `Indirect Scale` 0 → 3.5):
+
+| Indirect off | Indirect on |
+| --- | --- |
+| ![Indirect off: shadowed surfaces near black](/volumetric-light/indirect-off.webp) | ![Indirect on: shadowed surfaces lifted to dark grey](/volumetric-light/indirect-on.webp) |
 
 ## How it works
 

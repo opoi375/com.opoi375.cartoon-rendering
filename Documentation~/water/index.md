@@ -2,6 +2,8 @@
 
 ## 两个水面 Shader
 
+![卡通水面：解析波形 + 深度泡沫，岸边芦苇与村舍入水](/water/surface.webp)
+
 ### CartoonWaterSimple —— 波浪
 
 内置**距离 LOD 曲面细分**：hull/domain 阶段按与相机的距离细分三角形，再用解析波场置换顶点。
@@ -30,6 +32,8 @@
 ## 水下后期
 
 `UnderwaterPostProcessFeature`：相机没入水面后的卡通雾效。
+
+![水下后期：越深越冷，远处物体往蓝绿雾色收](/water/underwater.webp)
 
 **设置**：菜单 **CartoonRendering > Underwater > Setup Underwater Post Process**，或手动在 Renderer 上 Add Renderer Feature。材质运行时自动构建，无需资产配置。
 

@@ -2,6 +2,10 @@
 
 `PixelatePostProcessFeature` quantizes the frame into chunky retro pixels.
 
+| Off | On (px 3.5 / 6.5 levels) |
+| --- | --- |
+| ![Pixelate off](/effects/pixelate-off.webp) | ![Pixelate on](/effects/pixelate-on.webp) |
+
 ## Features
 
 - **Volume-driven**: all parameters live on the Volume Profile — add the **CartoonRendering/Pixelate Post Process** override and raise **Intensity** above 0 to enable

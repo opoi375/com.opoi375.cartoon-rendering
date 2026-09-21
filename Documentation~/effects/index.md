@@ -2,6 +2,10 @@
 
 `PixelatePostProcessFeature` 把画面量化为大像素块的复古像素风效果。
 
+| 关闭 | 开启（px 3.5 / 色阶 6.5） |
+| --- | --- |
+| ![像素化关闭](/effects/pixelate-off.webp) | ![像素化开启](/effects/pixelate-on.webp) |
+
 ## 特点
 
 - **Volume 驱动**：所有参数都在 Volume Profile 上 —— 添加 **CartoonRendering/Pixelate Post Process** override，把 **Intensity** 调到 0 以上即启用

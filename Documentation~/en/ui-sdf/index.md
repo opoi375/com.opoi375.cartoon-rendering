@@ -2,6 +2,10 @@
 
 Signed-distance-field UI graphics: edges stay razor sharp at any scale, with boolean ops and morphing built in.
 
+![The four built-in SDF UI materials: rounded box, smooth union, metaballs and a ticket](/ui-sdf/sdf-shapes.webp)
+
+> Left to right: `SDFShapes` rounded box (fill + stroke), `SDFBooleans` smooth union (with operand outlines), `SDFMetaballs` fusion, `SDFTicket` with perforated edges.
+
 ## Built-in Shaders
 
 | Shader | Contents |

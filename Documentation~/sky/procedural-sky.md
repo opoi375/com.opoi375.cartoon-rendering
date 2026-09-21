@@ -2,6 +2,10 @@
 
 `CartoonProceduralSky` 是一个 ScriptableObject 配置资产 + `CartoonSkyboxFeature`（URP Render Feature）组成的天空系统。
 
+| 正午 | 黄昏 |
+| --- | --- |
+| ![正午的天空：五段式渐变 + 白云](/sky/procedural-noon.webp) | ![黄昏的天空：暖橙渐变 + 长影](/sky/procedural-sunset.webp) |
+
 ## 为什么不用 RenderSettings.skybox
 
 Unity 6 / URP 17 的原生 skybox 管线只绘制四个内置 skybox shader，自定义 shader 会被**静默忽略**。本系统用全屏三角形 + 解析重建视线方向（NDC → 逆 VP → 世界射线），在 `BeforeRenderingSkybox` 注入，彻底绕开该限制，同时避免了相机立方体方案在三角形接缝处的色带问题。

@@ -2,6 +2,10 @@
 
 基于有符号距离场（SDF）的 UI 图形方案：边缘任意缩放都锐利，天然支持布尔运算与形变动画。
 
+![四个内置 SDF UI 材质：圆角矩形、平滑并集、Metaball、票券](/ui-sdf/sdf-shapes.webp)
+
+> 从左到右：`SDFShapes` 圆角矩形（填充 + 描边）、`SDFBooleans` 平滑并集（展示两个操作数）、`SDFMetaballs` 融合、`SDFTicket` 锯齿边票券。
+
 ## 内置 Shader
 
 | Shader | 内容 |

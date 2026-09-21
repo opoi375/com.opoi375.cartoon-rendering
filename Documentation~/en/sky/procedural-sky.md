@@ -2,6 +2,10 @@
 
 The sky system pairs a `CartoonProceduralSky` ScriptableObject config with `CartoonSkyboxFeature` (a URP Render Feature).
 
+| Noon | Sunset |
+| --- | --- |
+| ![Noon sky: five-stop gradient with white clouds](/sky/procedural-noon.webp) | ![Sunset sky: warm orange gradient with long shadows](/sky/procedural-sunset.webp) |
+
 ## Why not RenderSettings.skybox
 
 Unity 6 / URP 17's native skybox pipeline only draws the four built-in skybox shaders — custom shaders are **silently ignored**. This system renders a fullscreen triangle and reconstructs the world ray analytically (NDC → inverse VP), injected at `BeforeRenderingSkybox`. It also avoids the triangle-seam banding of camera-centred skybox cubes.

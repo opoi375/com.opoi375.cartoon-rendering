@@ -2,6 +2,8 @@
 
 PBRToon is a character-focused toon shader family. It keeps URP Lit.shader's pass structure but swaps the lighting model for cartoon lighting (`PBRToon.hlsl`).
 
+![A PBRToon character: shadow ramp, rim light and outline in one model](/shading/toon-character.webp)
+
 ## The Four Shaders
 
 | Shader | Use |

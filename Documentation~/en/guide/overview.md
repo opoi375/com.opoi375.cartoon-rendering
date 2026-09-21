@@ -4,6 +4,8 @@
 
 It packs a complete cartoon rendering pipeline into one package — from characters to environment, from sky to water — with a consistent look across all modules.
 
+![Showcase scene: a low-poly island with a village, a lake and interactive grass](/showcase/overview.webp)
+
 ## Modules
 
 | Module | Contents | Details |

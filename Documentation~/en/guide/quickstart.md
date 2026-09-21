@@ -29,3 +29,13 @@ Menu **CartoonRendering > Water > Create Water Plane** (or manually assign `Cart
 Tessellation handles mesh density — a 4-vertex Quad looks identical to a 1000×1000 grid; the mesh only provides the silhouette.
 
 Foam requires the camera Depth Texture. See [Cartoon Water](/en/water/).
+
+## 4. What It Looks Like
+
+Put the three steps above in one scene and you get the showcase used across these docs — the same island at three times of day:
+
+| Noon | Sunset | Night |
+| --- | --- | --- |
+| ![Village at noon](/showcase/noon.webp) | ![Village at sunset](/showcase/sunset.webp) | ![Village at night](/showcase/night.webp) |
+
+> The showcase scene itself lives in the game project (`Assets/Scenes/CartoonShowcase.unity`); the package only ships per-module sample assets.

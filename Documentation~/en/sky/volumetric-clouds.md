@@ -2,6 +2,8 @@
 
 Ray-marched cartoon volumetric clouds, rendered into a **half-resolution** RT and composited, with temporal accumulation to kill banding.
 
+![Volumetric clouds: sparse wispy shapes with cel shading and silver lining](/sky/volumetric-clouds.webp)
+
 ## Pipeline
 
 ```

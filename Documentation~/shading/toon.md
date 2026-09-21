@@ -2,6 +2,8 @@
 
 PBRToon 是面向角色的卡通着色器家族，沿用 URP Lit.shader 的 Pass 结构，但光照模型替换为卡通光照（`PBRToon.hlsl`）。
 
+![PBRToon 角色：阴影色阶、边缘光与描边都集中在同一个角色上](/shading/toon-character.webp)
+
 ## 四个 Shader
 
 | Shader | 用途 |
