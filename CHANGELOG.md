@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+- **编辑器循环里的两处每帧开销**：`GrassBladePreview.Update` 原来每帧无条件 `DestroyImmediate` 旧网格再重建一个（`[ExecuteAlways]` 下编辑模式每帧都跑，注释写的是"参数变更时重建"但代码没判），现在参数快照一致就直接返回；`OnDrawGizmos` 也不再每帧重取 `mesh.vertices` / `mesh.triangles`（两份托管数组拷贝），改用上一次的缓存
+- **`CartoonProceduralSkyUpdater` 每帧全场扫 Light、且没太阳时把退化值写进共享材质资产**：`ApplyImmediate` 走 `LateUpdate`，`sunLight` 没指定时原来每帧做一次 `FindAnyObjectByType<Light>()`（现在缓存，被销毁才重找）；更要紧的是找不到光时 `GetSunDirection(null)` 返回 `(0,-1,0)`，而这个方法写的是 `.mat` 资产上的属性，实测打开一个没有方向光的场景就会把 `CartoonSky.mat` 的 `_CartoonSunDirection` / `_CartoonTimeOfDay` 静悄悄改掉，现在没有太阳直接不写
+
+
 ### Docs
 - 文档站补上 19 张实机配图（`Documentation~/public/`，全部为 WebP）：展示场景三个时段与小星球总览、PBRToon 角色、天空正午/黄昏、体积云、卡通水面/水下、交互草地、像素化开关对比、LED 点阵屏、SDF UI 四个材质、体积光光柱与间接光烘焙对比
 - 中英双语 12 个页面插入配图（共 24 篇）：概述 / 快速上手 / 卡通角色 / 程序化天空 / 体积云 / 水面 / 草地 / 像素化 / LED / SDF UI / 体积光 / 世界弯曲

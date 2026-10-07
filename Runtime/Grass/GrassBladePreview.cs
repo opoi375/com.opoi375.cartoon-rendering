@@ -24,6 +24,17 @@ namespace CartoonRendering
         private Mesh _mesh;
         private Material _wireMaterial;
 
+        // Gizmos 每帧重绘，顶点/三角形数组只在上一次重建时取一次，别每帧再拷两份托管数组
+        private Vector3[] _gizmoVerts;
+        private int[] _gizmoTris;
+
+        // 上一次重建所用的参数快照
+        private int _builtSegments = -1;
+        private float _builtRootHalfWidth = float.MinValue;
+        private float _builtMaxHalfWidth = float.MinValue;
+        private float _builtBendAmount = float.MinValue;
+        private float _builtDirectionAngle = float.MinValue;
+
         private void OnEnable()
         {
             Rebuild();
@@ -31,7 +42,14 @@ namespace CartoonRendering
 
         private void Update()
         {
-            // 每次参数变更自动重建（Inspector 编辑时立即生效）
+            // 只在参数真的变了才重建。这里原来是每帧无条件 Rebuild()，而 [ExecuteAlways]
+            // 让 Update 在编辑模式的每一帧都跑 —— 编辑器循环就是这么被"每帧 DestroyImmediate
+            // 一个 Mesh + 重新分配一个 Mesh"吃掉的（还会顺带把图形资源拆掉重建）。
+            if (Segments == _builtSegments
+                && RootHalfWidth == _builtRootHalfWidth
+                && MaxHalfWidth == _builtMaxHalfWidth
+                && BendAmount == _builtBendAmount
+                && DirectionAngle == _builtDirectionAngle) return;
             Rebuild();
         }
 
@@ -43,6 +61,16 @@ namespace CartoonRendering
             }
             _mesh = GrassMeshBuilder.BuildBlade(
                 Segments, RootHalfWidth, MaxHalfWidth, BendAmount, DirectionAngle);
+
+            _builtSegments = Segments;
+            _builtRootHalfWidth = RootHalfWidth;
+            _builtMaxHalfWidth = MaxHalfWidth;
+            _builtBendAmount = BendAmount;
+            _builtDirectionAngle = DirectionAngle;
+
+            // 一次取干净，交给 OnDrawGizmos 反复用
+            _gizmoVerts = _mesh != null ? _mesh.vertices : null;
+            _gizmoTris = _mesh != null ? _mesh.triangles : null;
         }
 
         private void OnRenderObject()
@@ -68,8 +96,9 @@ namespace CartoonRendering
             var m = Matrix4x4.TRS(transform.position, transform.rotation,
                 new Vector3(Scale, Scale, Scale));
 
-            var verts = _mesh.vertices;
-            var tris = _mesh.triangles;
+            var verts = _gizmoVerts;
+            var tris = _gizmoTris;
+            if (verts == null || tris == null) return;
             for (int i = 0; i < tris.Length; i += 3)
             {
                 Vector3 a = m.MultiplyPoint3x4(verts[tris[i]]);

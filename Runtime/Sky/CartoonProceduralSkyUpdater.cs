@@ -65,6 +65,9 @@ namespace CartoonRendering
         [Tooltip("Optional directional light. If null, the component looks up Light.main every frame.")]
         public Light sunLight;
 
+        // 自动找到的太阳缓存（被销毁时 Unity 的 == null 会把它当空，于是下一帧重找）
+        Light _autoSun;
+
         [Tooltip("If true, RenderSettings.skybox is set automatically. Disable to drive it manually.")]
         public bool autoApplyToRenderSettings = true;
 
@@ -152,7 +155,15 @@ namespace CartoonRendering
         {
             if (skyAsset == null) return;
 
-            Light light = sunLight != null ? sunLight : GameObject.FindAnyObjectByType<Light>();
+            // 没手动指定太阳时会自动找一个 Light —— 但只找一次并缓存：
+            // ApplyImmediate 走的是 LateUpdate（[ExecuteAlways] 下编辑模式每帧都跑）,
+            // 每帧做一次全场类型扫描是没必要的开销（场景越大越明显）。
+            Light light = sunLight != null ? sunLight : (_autoSun != null ? _autoSun : (_autoSun = GameObject.FindAnyObjectByType<Light>()));
+            if (light == null) return;
+            // 找不到太阳就直接返回：GetSunDirection(null) 会给出 (0,-1,0)（太阳指向正下方），
+            // 而这个方法写的是**共享材质资产**上的属性，编辑器里每帧写一次就把 .mat 改脏了 ——
+            // 实测打开一个没有方向光的场景（比如流体演示水箱）再存盘，CartoonSky.mat 的
+            // _CartoonSunDirection 就从美术调好的值被静悄悄改成 (0,-1,0)。没太阳时保持原样才对。
             Vector3 sunDir = TimeOfDaySystem.GetSunDirection(light);
             float timeOfDay = TimeOfDaySystem.GetTimeOfDayFromLight(light);
 
