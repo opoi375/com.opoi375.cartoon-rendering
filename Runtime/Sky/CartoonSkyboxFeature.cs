@@ -36,6 +36,8 @@ namespace CartoonRendering
         private static readonly int kCloudSunColorId     = Shader.PropertyToID("_CartoonSunColor");
         private static readonly int kCloudTintId         = Shader.PropertyToID("_CloudTint");
         private static readonly int kCloudShapeId        = Shader.PropertyToID("_CloudShapeParams");
+        private static readonly int kCloudShape2Id       = Shader.PropertyToID("_CloudShapeParams2");
+        private static readonly int kCloudShape3Id       = Shader.PropertyToID("_CloudShapeParams3");
         private static readonly int kCloudMarchId        = Shader.PropertyToID("_CloudMarchParams");
         private static readonly int kCloudWindId         = Shader.PropertyToID("_CloudWind");
         private static readonly int kCloudShadeId        = Shader.PropertyToID("_CloudShadeParams");
@@ -46,19 +48,13 @@ namespace CartoonRendering
         private static readonly int kAmbNightTopId       = Shader.PropertyToID("_AmbNightTop");
         private static readonly int kAmbNightHorizonId   = Shader.PropertyToID("_AmbNightHorizon");
         private static readonly int kAmbBlendId          = Shader.PropertyToID("_AmbBlendParams");
-        private static readonly int kCloudNoiseTexId     = Shader.PropertyToID("_CloudNoiseTex");
         private static readonly int kCloudHistoryTexId   = Shader.PropertyToID("_CloudHistoryTex");
         private static readonly int kCloudPrevVPId       = Shader.PropertyToID("_CloudPrevVP");
         private static readonly int kCloudHistoryWeightId= Shader.PropertyToID("_CloudHistoryWeight");
-        private static readonly int kCloudFrameId        = Shader.PropertyToID("_CartoonCloudFrame");
         private static readonly int kCloudRTSizeId       = Shader.PropertyToID("_CloudRTSize");
         private static readonly int kCloudDebugId        = Shader.PropertyToID("_CloudDebug");
 
         // 每张图只警告一次：这个推送是每帧跑的，刷屏比缺图更糟。
-        private static bool s_NoiseMissingWarned;
-        private static bool s_WeatherMissingWarned;
-        private static readonly int kCloudShape2DId      = Shader.PropertyToID("_CloudShape2D");
-        private static readonly int kCloudWeatherId      = Shader.PropertyToID("_CloudWeatherParams");
         private static readonly int kCloudScatterId      = Shader.PropertyToID("_CloudScatterParams");
         private static readonly int kCloudProfileId      = Shader.PropertyToID("_CloudProfileParams");
 
@@ -333,7 +329,16 @@ namespace CartoonRendering
                         cloudData.invVP = invVP;
                         cloudData.sky = sky;
                         cloudData.prevVP = hist != null ? hist.PrevVP : vp;
-                        cloudData.historyWeight = hist != null && hist.Valid
+                        // 只有在【至少渲染过一帧】之后才采样历史：hist.Valid 在首帧
+                        // 渲染前就是 false，但单帧截图 / 每次新建相机的历史缓冲仍是
+                        // 空的，一采样就把整帧压到权重 1-0.9=0.1，表现为"云变成了
+                        // 一层半透明薄雾"（实测就是这个症状）。
+                        // Index>=2 保证被采样的那块缓冲确实被上一帧写过。
+                        // 注意：这挡住了"首帧空白缓冲"，但没解决真正的已知问题 ——
+                        // 历史缓冲的亮度系统性低于当前帧，任何权重都会把云压淡
+                        // （0.3 权重仍可见）。所以 volCloudTemporalEnabled 默认关闭。
+                        bool historyReady = hist != null && hist.Valid && hist.Index >= 2;
+                        cloudData.historyWeight = historyReady
                             ? Mathf.Clamp01(sky.volCloudTemporal) : 0.0f;
                         cloudData.prevHistory = hist != null ? hist.Previous : null;
                         cloudData.frame = s_CloudFrame = (s_CloudFrame + 1) & 1023;
@@ -349,7 +354,6 @@ namespace CartoonRendering
                             PushCloudParams(data.material, data.sky, data.invVP);
                             data.material.SetMatrix(kCloudPrevVPId, data.prevVP);
                             data.material.SetFloat(kCloudHistoryWeightId, data.historyWeight);
-                            data.material.SetFloat(kCloudFrameId, data.frame);
                             if (data.prevHistory != null)
                                 data.material.SetTexture(kCloudHistoryTexId, data.prevHistory);
                             data.material.SetVector(kCloudRTSizeId,
@@ -427,12 +431,21 @@ namespace CartoonRendering
                 mat.SetColor(kCloudSunColorId, sky.sunColor);
                 mat.SetColor(kCloudTintId, sky.cloudColor);
 
+                // _CloudShapeParams : x=云底 y=单朵最大厚度 z=cell 间距 w=覆盖率
                 mat.SetVector(kCloudShapeId, new Vector4(
-                    sky.volCloudCoverage, sky.volCloudBaseHeight,
-                    sky.volCloudThickness, sky.volCloudScale));
+                    sky.volCloudBaseHeight, sky.volCloudThickness,
+                    sky.volCloudSpacing, sky.volCloudCoverage));
+                // _CloudShapeParams2 : x=半径占比 y=半径随机 z=厚度随机 w=边缘侵蚀
+                mat.SetVector(kCloudShape2Id, new Vector4(
+                    sky.volCloudSize, sky.volCloudSizeJitter,
+                    sky.volCloudHeightJitter, sky.volCloudDetail));
+                // _CloudShapeParams3 : x=圆顶指数 y=域扭曲 z=噪声频率 w=密度
+                mat.SetVector(kCloudShape3Id, new Vector4(
+                    sky.volCloudDome, sky.volCloudWarp,
+                    sky.volCloudNoiseFreq, sky.volCloudDensity));
+                // _CloudMarchParams  : x=步进数 y=光照步进数
                 mat.SetVector(kCloudMarchId, new Vector4(
-                    sky.volCloudDensity, sky.volCloudMarchSteps,
-                    sky.volCloudLightSteps, sky.volCloudDetail));
+                    sky.volCloudMarchSteps, sky.volCloudLightSteps, 0.0f, 0.0f));
                 Vector2 windDir = new Vector2(1.0f, 0.35f).normalized;
                 mat.SetVector(kCloudWindId, new Vector4(
                     sky.volCloudWindSpeed, windDir.x, windDir.y, 0.0f));
@@ -452,40 +465,13 @@ namespace CartoonRendering
 
                 // 天气图：没赋值时整个调制退化为 0（覆盖度回到全屏常数），
                 // 所以缺图只是"云均匀一点"，不会像旧实现那样什么都不画。
-                mat.SetVector(kCloudWeatherId, new Vector4(
-                    sky.volCloudWeatherScale, sky.volCloudWarp,
-                    sky.volCloudWeatherContrast, sky.volCloudWeatherDetail));
-                if (sky.volCloudShapeTexture != null)
-                    mat.SetTexture(kCloudShape2DId, sky.volCloudShapeTexture);
-
                 mat.SetVector(kCloudScatterId, new Vector4(
                     sky.volCloudGForward, sky.volCloudGBackward,
                     sky.volCloudPhaseForward, sky.volCloudScatterOctaves));
+                // _CloudProfileParams : x=大气透视强度 y=大尺度天气调制强度
                 mat.SetVector(kCloudProfileId, new Vector4(
-                    sky.volCloudTypeContrast, sky.volCloudTypeBias,
-                    sky.volCloudBaseCoverageBoost, sky.volCloudAerialPerspective));
+                    sky.volCloudAerialPerspective, sky.volCloudWeather, 0.0f, 0.0f));
 
-                // 形状体积缺引用时，噪声采样恒为 0，密度永远过不了阈值 ——
-                // 症状是"云开了但天上什么都没有"，而且不报错。这正是本次
-                // 修复要消灭的那一类静默失败，所以宁可喊出来。
-                if (sky.volCloudNoiseTexture != null)
-                    mat.SetTexture(kCloudNoiseTexId, sky.volCloudNoiseTexture);
-                else if (!s_NoiseMissingWarned)
-                {
-                    s_NoiseMissingWarned = true;
-                    Debug.LogWarning("CartoonSkyboxFeature: 体积云已开启，但 " +
-                        sky.name + ".volCloudNoiseTexture 为空 —— 云层不会画出来。" +
-                        "请在 Inspector 里指定包内的 Textures/CloudNoise3D，" +
-                        "或用 Tools > Cloud > Bake Cloud Noise 3D 重新生成。");
-                }
-                if (sky.volCloudShapeTexture == null && !s_WeatherMissingWarned)
-                {
-                    s_WeatherMissingWarned = true;
-                    Debug.LogWarning("CartoonSkyboxFeature: volCloudShapeTexture 为空 —— " +
-                        "天气层退化为均匀覆盖度（云会均匀铺满天，聚不成云系）。" +
-                        "可指定包内的 Textures/CloudShape2D，或 Tools > Cloud > " +
-                        "Bake Cloud Shape Maps 重新生成。");
-                }
             }
 
             private static Matrix4x4 ComputeVP(UniversalCameraData cameraData)

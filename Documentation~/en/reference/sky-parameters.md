@@ -36,39 +36,44 @@ Complete parameter table of the `CartoonProceduralSky` ScriptableObject (default
 
 ## Volumetric Clouds
 
+> Rewritten in v1.8.0: density is now built from **discrete cloud instances** (the
+> world plane is split into cells and each cloud is placed on its own). The old
+> model thresholded a continuous noise by coverage - past the percolation threshold
+> (~0.3) the field is topologically connected, so the sky is inevitably one mass.
+> That is topology, not tuning.
+> The 2D texture cloud layer was removed at the same time.
+
 | Parameter | Default | Notes |
 | --- | --- | --- |
 | `volumetricCloudsEnabled` | false | Master toggle |
-| `volCloudNoiseTexture` | shipped | 128^3 shape volume noise (R=shape, GBA=erosion). CDF-normalised, regenerable with the bake tool |
-| `volCloudShapeTexture` | shipped | 512^2 weather / domain-warp map (R=large weather, G=mid, BA=warp). **Without it clouds spread evenly across the whole sky** |
-| `volCloudCoverage` | 0.24 | Cloud amount. After CDF normalisation this is literally the fraction of sky covered |
-| `volCloudWeatherScale` | 0.0002 | Weather map world scale; 0.0002 -> one tile spans 5 km |
-| `volCloudWeatherContrast` | 0.55 | How far the weather term pushes coverage locally; 0 = uniform sky |
-| `volCloudWeatherDetail` | 0.3 | Blend from large systems to individual clouds |
-| `volCloudWarp` | 0.5 | Domain warp strength in noise tiles |
-| `volCloudBaseHeight` | 800 | Slab base height (metres, absolute world Y) |
-| `volCloudThickness` | 300 | Slab thickness (metres) |
-| `volCloudScale` | 0.00065 | 3D shape scale; 0.00065 -> 1.5 km tile, ~400 m clouds |
-| `volCloudDensity` | 1.7 | Overall extinction |
-| `volCloudMarchSteps` | 32 | March steps (8~48) |
-| `volCloudLightSteps` | 6 | Steps marched towards the sun |
-| `volCloudDetail` | 0.8 | High-frequency erosion (cauliflower edges) |
-| `volCloudWindSpeed` | 7 | Wind speed |
-| `volCloudShadeSteps` | 3 | Cel band count |
-| `volCloudShadeSmooth` | 0.35 | Cel band edge softness |
-| `volCloudSilverIntensity` | 0.3 | Back-lit rim (gated by voxel density, so it cannot sprinkle dots outside the silhouette) |
-| `volCloudSilverPower` | 8 | Rim tightness around the sun |
-| `volCloudGForward` | 0.75 | Forward lobe anisotropy g. Cloud droplets scatter hard forward, so 0.6~0.85 is physical; 0 = isotropic (flat, fake) |
-| `volCloudGBackward` | -0.25 | Backward lobe g - shapes the side facing away from the sun |
-| `volCloudPhaseForward` | 0.65 | Forward lobe weight; higher flares harder towards the sun |
-| `volCloudScatterOctaves` | 3 | Multiple-scattering octaves. 1 = single scattering only (cores burn to flat grey), 3~4 gives glowing interiors |
-| `volCloudTypeContrast` | 1.4 | How strongly weather selects cloud TYPE (stratus <-> cumulus), not just amount |
-| `volCloudTypeBias` | 0.25 | Bias of the weather -> type mapping. Positive favours tall cumulus, negative flat stratus |
-| `volCloudBaseCoverageBoost` | 0.12 | Extra coverage near the cloud base, suppressing the odd shapes tiled noise carves at low elevation |
-| `volCloudAerialPerspective` | 0.8 | Aerial perspective on clouds: distant cloud is extincted and re-tinted towards the sky instead of only fading alpha |
-| `volCloudDebug` | Off | Debug views: Coverage / MarchRange / Field / Profile / Lod / Weather |
-| `volCloudTemporalEnabled` | true | Temporal accumulation toggle (off frees history buffers, freezes jitter) |
-| `volCloudTemporal` | 0.8 | Accumulation weight (0~0.9, 0 = no blending) |
+| `volCloudSpacing` | 950 | Cell size in metres - sets the gaps between clouds |
+| `volCloudCoverage` | 0.62 | Whether a cell holds a cloud. Fades in smoothly, pushed by Weather |
+| `volCloudSize` | 0.55 | Radius as a fraction of the cell (x2 ~ the narrowest gap) |
+| `volCloudSizeJitter` | 0.6 | Radius randomness |
+| `volCloudWeather` | 0.4 | Large-scale weather modulation (wavelength = 8 cells). 0 = even scatter |
+| `volCloudBaseHeight` | 750 | Cloud base (absolute world Y, metres) |
+| `volCloudThickness` | 420 | Maximum thickness of one cloud; each varies by Height Jitter |
+| `volCloudHeightJitter` | 0.6 | Thickness randomness |
+| `volCloudDome` | 0.5 | Dome exponent: 0.25 = wide/flat (stratus), 0.7 = round (cumulus) |
+| `volCloudWarp` | 0.55 | Outline domain warp (pushes samples so edges curl) |
+| `volCloudNoiseFreq` | 0.002 | Warp / erosion noise frequency (cycles per metre) |
+| `volCloudDetail` | 0.7 | Edge erosion (surface band only, cores untouched) |
+| `volCloudDensity` | 1.9 | Extinction |
+| `volCloudMarchSteps` | 32 | View march steps (8~64) |
+| `volCloudLightSteps` | 4 | Sun self-shadow steps (1~8) |
+| `volCloudGForward` | 0.75 | Dual-lobe HG forward anisotropy |
+| `volCloudGBackward` | -0.25 | Backward lobe g |
+| `volCloudPhaseForward` | 0.65 | Forward lobe weight |
+| `volCloudScatterOctaves` | 3 | Multiple-scattering octaves (1 = single scattering, grey cores) |
+| `volCloudAerialPerspective` | 0.8 | Aerial perspective on clouds (extinction + inscatter tint) |
+| `volCloudWindSpeed` | 7 | Wind speed (m/s) |
+| `volCloudShadeSteps` | 3 | Cel band count (<=1.5 disables quantisation) |
+| `volCloudShadeSmooth` | 0.35 | Band-edge softness |
+| `volCloudSilverIntensity` | 0.3 | Back-lit rim intensity (gated by voxel density) |
+| `volCloudSilverPower` | 8 | Rim tightness |
+| `volCloudTemporalEnabled` | **false** | Known issue: turning it on washes clouds into a translucent veil, see the docs |
+| `volCloudTemporal` | 0.8 | Accumulation weight (only when the toggle above is on) |
+| `volCloudDebug` | Off | Debug views: Coverage / Instance / Height / Edge / Depth / Scatter / integral diagnostic |
 
 ## Sky Gradient (three palettes)
 

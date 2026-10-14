@@ -49,10 +49,6 @@ namespace CartoonRendering
         private static readonly int kBlendParams        = Shader.PropertyToID("_CartoonBlendParams"); // x=sunsetBlendStart, y=dayBlendEnd
         private static readonly int kStarMap            = Shader.PropertyToID("_CartoonStarMap");
         private static readonly int kHasStarMap         = Shader.PropertyToID("_CartoonHasStarMap");
-        private static readonly int kCloudColor         = Shader.PropertyToID("_CartoonCloudColor");
-        private static readonly int kCloudParams        = Shader.PropertyToID("_CartoonCloudParams"); // x=height, y=threshold, z=scale, w=intensity
-        private static readonly int kCloudMap           = Shader.PropertyToID("_CartoonCloudMap");
-        private static readonly int kHasCloudMap        = Shader.PropertyToID("_CartoonHasCloudMap");
 
         // ----- Inspector --------------------------------------------------
 
@@ -196,18 +192,6 @@ namespace CartoonRendering
                 mat.SetFloat(kHasStarMap, 0.0f);
             }
 
-            mat.SetColor(kCloudColor, skyAsset.cloudColor);
-            mat.SetVector(kCloudParams,
-                new Vector4(skyAsset.cloudHeight, skyAsset.cloudThreshold, skyAsset.cloudScale, skyAsset.cloudIntensity));
-            if (skyAsset.cloudTexture != null)
-            {
-                mat.SetTexture(kCloudMap, skyAsset.cloudTexture);
-                mat.SetFloat(kHasCloudMap, 1.0f);
-            }
-            else
-            {
-                mat.SetFloat(kHasCloudMap, 0.0f);
-            }
 
             mat.SetColor(kTopColor, skyAsset.topColor);
             mat.SetColor(kMiddleColor, skyAsset.middleColor);
@@ -296,18 +280,6 @@ namespace CartoonRendering
                 Shader.SetGlobalFloat(kHasStarMap, 0.0f);
             }
 
-            Shader.SetGlobalColor(kCloudColor, skyAsset.cloudColor);
-            Shader.SetGlobalVector(kCloudParams,
-                new Vector4(skyAsset.cloudHeight, skyAsset.cloudThreshold, skyAsset.cloudScale, skyAsset.cloudIntensity));
-            if (skyAsset.cloudTexture != null)
-            {
-                Shader.SetGlobalTexture(kCloudMap, skyAsset.cloudTexture);
-                Shader.SetGlobalFloat(kHasCloudMap, 1.0f);
-            }
-            else
-            {
-                Shader.SetGlobalFloat(kHasCloudMap, 0.0f);
-            }
 
             Shader.SetGlobalColor(kTopColor, skyAsset.topColor);
             Shader.SetGlobalColor(kMiddleColor, skyAsset.middleColor);

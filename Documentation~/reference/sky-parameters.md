@@ -36,39 +36,42 @@
 
 ## Volumetric Clouds（体积云）
 
+> v1.8.0 重写：密度模型改成【离散云团实例】（世界平面切 cell，每朵云独立摆放）。
+> 旧模型是"把连续噪声按覆盖率阈值化" —— 覆盖率一过渗流阈值（约 0.3）整块场就
+> 连通，天空必然是一团。这是拓扑问题，调参救不了。
+> 2D 贴图平流云层已一并删除。
+
 | 参数 | 默认 | 说明 |
 | --- | --- | --- |
 | `volumetricCloudsEnabled` | false | 总开关 |
-| `volCloudNoiseTexture` | 内置 | 128³ 形状体积噪声（R=形状，GBA=细节侵蚀）。做过 CDF 归一化，可用烘焙工具重生成 |
-| `volCloudShapeTexture` | 内置 | 512² 天气 / 域扭曲图（R=大尺度天气，G=中尺度，BA=扭曲）。**缺它云会均匀铺满天** |
-| `volCloudCoverage` | 0.24 | 云量。CDF 归一化之后就是字面的"天空被遮住的比例" |
-| `volCloudWeatherScale` | 0.0002 | 天气图世界尺度，0.0002 → 一块 5 km |
-| `volCloudWeatherContrast` | 0.55 | 天气在局部把覆盖度推开多少，0 = 均匀天空 |
-| `volCloudWeatherDetail` | 0.3 | 大尺度云系 ↔ 单朵云的混比 |
-| `volCloudWarp` | 0.5 | 域扭曲强度（噪声图块单位） |
-| `volCloudBaseHeight` | 800 | 云底高度（米，绝对世界 Y） |
-| `volCloudThickness` | 300 | 云层厚度（米） |
-| `volCloudScale` | 0.00065 | 3D 形状尺度，0.00065 → 一块 1.5 km，单体云约 400 m |
-| `volCloudDensity` | 1.7 | 整体密度 |
-| `volCloudMarchSteps` | 32 | 步进次数（8~48） |
-| `volCloudLightSteps` | 6 | 朝太阳的光照步进数 |
-| `volCloudDetail` | 0.8 | 高频侵蚀强度（椰菜花边缘） |
-| `volCloudWindSpeed` | 7 | 风速 |
-| `volCloudShadeSteps` | 3 | 卡通明暗分区数 |
+| `volCloudSpacing` | 950 | 云团 cell 间距（米）。朵与朵之间的留白由它决定 |
+| `volCloudCoverage` | 0.62 | 一个 cell 是否住着云。平滑淡入，同时被 Weather 上下推 |
+| `volCloudSize` | 0.55 | 云团半径占 cell 的比例（×2 ≈ 两朵云最窄处） |
+| `volCloudSizeJitter` | 0.6 | 半径随机度 |
+| `volCloudWeather` | 0.4 | 大尺度天气调制（波长 = 8 cell）。0 = 均匀撒糖 |
+| `volCloudBaseHeight` | 750 | 云底高度（绝对世界 Y，米） |
+| `volCloudThickness` | 420 | 单朵云最大厚度（米），每朵按 Height Jitter 变化 |
+| `volCloudHeightJitter` | 0.6 | 厚度随机度 |
+| `volCloudDome` | 0.5 | 圆顶指数：0.25 = 宽而扁（层云），0.7 = 圆墩（积云） |
+| `volCloudWarp` | 0.55 | 轮廓域扭曲（把采样点推开，云缘卷起来） |
+| `volCloudNoiseFreq` | 0.002 | 扭曲 / 侵蚀噪声频率（每米循环数） |
+| `volCloudDetail` | 0.7 | 边缘侵蚀强度（只啃表面带，云芯不动） |
+| `volCloudDensity` | 1.9 | 消光 |
+| `volCloudMarchSteps` | 32 | 视线步进数（8~64） |
+| `volCloudLightSteps` | 4 | 朝太阳的自阴影步进数（1~8） |
+| `volCloudGForward` | 0.75 | 双叶 HG 前叶各向异性 g |
+| `volCloudGBackward` | -0.25 | 后叶 g |
+| `volCloudPhaseForward` | 0.65 | 前叶权重 |
+| `volCloudScatterOctaves` | 3 | 多重散射倍频数（1 = 单次散射，云芯死灰） |
+| `volCloudAerialPerspective` | 0.8 | 云的大气透视（消光 + 内散射染进天空色） |
+| `volCloudWindSpeed` | 7 | 风速（米/秒） |
+| `volCloudShadeSteps` | 3 | cel 明暗分区数（≤1.5 关闭量化） |
 | `volCloudShadeSmooth` | 0.35 | 分区边界软化 |
-| `volCloudSilverIntensity` | 0.3 | 逆光银边强度（按体素密度门控，不会在轮廓外撒白点） |
+| `volCloudSilverIntensity` | 0.3 | 逆光银边强度（按体素密度门控） |
 | `volCloudSilverPower` | 8 | 银边聚拢度 |
-| `volCloudGForward` | 0.75 | 前叶各向异性 g。云滴强烈前向散射，0.6~0.85 是物理区间；0 = 各向同性（发平、发假） |
-| `volCloudGBackward` | -0.25 | 后叶 g，决定背朝太阳那一侧的整体明暗形状 |
-| `volCloudPhaseForward` | 0.65 | 前叶权重，越高朝太阳方向越炸亮 |
-| `volCloudScatterOctaves` | 3 | 多重散射倍频数。1 = 只做单次散射（云芯烧成死灰），3~4 才有发亮的内部 |
-| `volCloudTypeContrast` | 1.4 | 天气决定【云型】（层云↔积云）的强度，而不只是决定云量 |
-| `volCloudTypeBias` | 0.25 | 天气→云型的偏置。正=偏竖厚积云，负=偏摊平层云 |
-| `volCloudBaseCoverageBoost` | 0.12 | 云底附近额外补的覆盖度，压住 tiled 噪声在低仰角啃出的怪形 |
-| `volCloudAerialPerspective` | 0.8 | 云的大气透视：远处按消光+内散射染进天空色，而不是只淡出 alpha |
-| `volCloudDebug` | Off | 调试视图：Coverage / MarchRange / Field / Profile / Lod / Weather |
-| `volCloudTemporalEnabled` | true | 时序累积开关（关闭时不分配历史缓冲、jitter 冻结） |
-| `volCloudTemporal` | 0.8 | 累积权重（0~0.9，0 = 关闭混合） |
+| `volCloudTemporalEnabled` | **false** | ⚠ 已知问题：开起来会把云压成半透明薄雾，详见文档 |
+| `volCloudTemporal` | 0.8 | 累积权重（仅在上一项开启时生效） |
+| `volCloudDebug` | Off | 调试视图：Coverage / Instance / Height / Edge / Depth / Scatter / 积分诊断 |
 
 ## Sky Gradient（三段调色板）
 

@@ -23,34 +23,27 @@ MonoBehaviour:
   starDensity: 0.035
   starTexture: {fileID: 0}
   cloudColor: {r: 1, g: 0.99, b: 0.97, a: 1}
-  cloudHeight: 201
-  cloudThreshold: 0.242
-  cloudScale: 1.92
-  cloudIntensity: 0
-  cloudTexture: {fileID: 0}
+  volCloudWeather: 0.4
+  volCloudSpacing: 950
+  volCloudSize: 0.55
+  volCloudSizeJitter: 0.6
   volumetricCloudsEnabled: 1
   volCloudDebug: 0
-  volCloudShapeTexture: {fileID: 2800000, guid: 380d42146fe769f4292a390b553a8f77, type: 2}
-  volCloudWeatherScale: 0.00016
-  volCloudWarp: 0.5
-  volCloudWeatherContrast: 0.6
-  volCloudWeatherDetail: 0.22
-  volCloudNoiseTexture: {fileID: 11700000, guid: 91f0fe2079f5a1e4dbfc1acf6045de32, type: 2}
-  volCloudCoverage: 0.22
+  volCloudWarp: 0.6
+  volCloudCoverage: 0.62
   volCloudBaseHeight: 800
-  volCloudThickness: 300
-  volCloudScale: 0.00042
+  volCloudThickness: 420
   volCloudDensity: 1.7
   volCloudMarchSteps: 32
   volCloudLightSteps: 6
-  volCloudDetail: 0.4
+  volCloudDetail: 0.7
   volCloudWindSpeed: 7
   volCloudShadeSteps: 3
   volCloudShadeSmooth: 0.35
   volCloudSilverIntensity: 0.3
   volCloudSilverPower: 8
-  volCloudTemporalEnabled: 1
-  volCloudTemporal: 0.9
+  volCloudTemporalEnabled: 0
+  volCloudTemporal: 0.8
   topColor: {r: 0.2, g: 0.5, b: 1, a: 1}
   middleColor: {r: 0.5, g: 0.75, b: 1, a: 1}
   bottomColor: {r: 0.72, g: 0.86, b: 1, a: 1}

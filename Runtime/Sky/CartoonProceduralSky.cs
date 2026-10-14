@@ -6,22 +6,27 @@ namespace CartoonRendering
 {
 
     /// <summary>体积云调试视图（CartoonProceduralSky.volCloudDebug）。</summary>
+    /// <remarks>
+    /// 体积云重写后（v1.8.0）的诊断手段：把密度模型的中间量直接画出来。
+    /// "天上没有云"和"云画了但看不见"用眼睛分不出来 —— 只能看中间量。
+    /// </remarks>
     public enum CloudDebugView
     {
         Off = 0,
-        /// <summary>累积不透明度：应该有成片的云块；整屏黑 = 密度模型没吃到东西。</summary>
+        /// <summary>覆盖率：应看到【离散的云团】之间留着天空；整屏黑 = 密度模型没吃到东西。</summary>
         Coverage = 1,
-        /// <summary>射线与云层的相交区间：黑 = 这段区间不存在或被裁掉。</summary>
-        MarchRange = 2,
-        /// <summary>云层中部的原始噪声值：整屏均匀灰 = 噪声被 mip 抹平了。</summary>
-        Field = 3,
-        /// <summary>高度剖面 hg：黑 = 云被垂直剖面整个裁掉。</summary>
-        Profile = 4,
-        /// <summary>选用的噪声 mip：远处偏高说明细节全被抹掉。</summary>
-        Lod = 5,
-        /// <summary>2D 天气场：应该有大片深浅分区；整屏一个灰度 = 天气图没接上。</summary>
-        Weather = 6,
+        /// <summary>存在性：每个 cell 的存活权重。这一视图专门用来验证"云是离散的"。</summary>
+        Instance = 2,
+        /// <summary>归一化高度：0=云底 1=云顶。应看到竖向渐变而非纯色。</summary>
+        Height = 3,
+        /// <summary>边带权重：应是云轮廓上的一圈线，证明轮廓是被啃出来的。</summary>
+        Edge = 4,
+        /// <summary>射线与云层的相交起点：红色 = 射线根本没穿过云层。</summary>
+        Depth = 5,
+        /// <summary>散射响应：同一角度下应随密度有明暗变化。</summary>
+        Scatter = 6,
     }
+
     /// <summary>
     /// Data container describing a procedural cartoon sky. Stored as a
     /// ScriptableObject because URP 17 removed the Volume-based
@@ -75,155 +80,135 @@ namespace CartoonRendering
         public Texture2D starTexture;
 
         // ----- Clouds ------------------------------------------------------
-
-        [Header("Clouds")]
-        [Tooltip("Cloud tint. Darkened automatically at night, warmed at sunset.")]
-        [ColorUsage(showAlpha: false, hdr: true)]
-        public Color cloudColor = new Color(1.0f, 1.0f, 1.0f, 1.0f);
-
-        [Range(5.0f, 300.0f), Tooltip("Height of the virtual cloud plane above the camera.")]
-        public float cloudHeight = 60.0f;
-
-        [Range(0.0f, 1.0f), Tooltip("Noise threshold - higher = fewer, smaller clouds.")]
-        public float cloudThreshold = 0.45f;
-
-        [Range(0.1f, 8.0f), Tooltip("Cloud UV scale (larger = smaller clouds).")]
-        public float cloudScale = 1.0f;
-
-        [Range(0.0f, 2.0f), Tooltip("Cloud visibility. 0 disables clouds.")]
-        public float cloudIntensity = 1.0f;
-
-        [Tooltip("Optional cloud texture sampled on the cloud plane. Red channel " +
-                 "is used as coverage. Leave empty to use procedural FBM noise.")]
-        public Texture2D cloudTexture;
-
-        // ----- Volumetric clouds ------------------------------------------
         // Stylised raymarched cloud layer rendered at half resolution by
         // CartoonSkyboxFeature (CartoonVolumetricClouds shader) and
         // composited over the procedural sky.
+        //
+        // 【密度模型 = 离散云团实例】
+        // 世界平面按 volCloudSpacing 切成 cell，每个 cell 最多住一朵云（独立
+        // 哈希决定它存不存在、多大、多厚），密度取各候选椭球体的最大值。
+        //
+        // 这与"把连续噪声按覆盖率阈值化"有本质区别：连续随机场有个渗流阈值
+        // （约 0.3），覆盖率一过它整块场就【拓扑连通】，天空必然是一整团/一整块
+        // 甲板 —— 那是拓扑问题，调噪声和侵蚀都救不了。cell 模型则天然保证
+        // 朵与朵之间有留白，而且每朵的半径/厚度都不同，读起来才像"天上有几朵云"。
+        //
+        // （2D 平流云层已在 v1.8.0 删除：它是一张贴到虚拟平面上的贴图，没有体积、
+        //   没有明暗、没有自阴影，与体积云叠在一起只会互相打架。cloudColor 保留，
+        //   继续作为体积云的色调。）
 
-        [Header("Volumetric Clouds")]
-        [Tooltip("Enable the raymarched volumetric cloud layer. The flat " +
-                 "billboard clouds above remain as the distant horizon band.")]
+        [Header("Clouds")]
+        [Tooltip("体积云的色调（乘在云的散射色上）。")]
+        public Color cloudColor = new Color(1.0f, 0.99f, 0.97f, 1.0f);
+
+        [Tooltip("启用体积云（天上的云由它一家负责）。")]
         public bool volumetricCloudsEnabled = false;
 
-        [Tooltip("Tileable 64^3 Perlin-Worley noise volume (R=base, GBA=detail). " +
-                 "Bake it via: Cartoon Rendering > Bake Cloud Noise 3D")]
-        public Texture3D volCloudNoiseTexture;
+        [Header("· 云团摆放")]
+        [Range(400f, 5000f), Tooltip("云团 cell 间距（米）。朵与朵之间的留白由它决定：\n" +
+            "越大越稀疏、分得开；越小越挤成一片。")]
+        public float volCloudSpacing = 950f;
 
-        [Tooltip("2D weather / domain-warp map (R=large weather, G=mid weather, BA=warp). " +
-                 "Bake it via: Tools > Cloud > Bake Cloud Shape Maps.\n" +
-                 "没有它时整片天空共用一个覆盖度常数，云只会均匀铺满 —— 像磨砂玻璃，不像天气。" +
-                 "留空则退回旧行为。")]
-        public Texture2D volCloudShapeTexture;
+        [Range(0.0f, 1.0f), Tooltip("覆盖率：这个 cell 是否住着云。\n" +
+            "平滑淡入（调它不会让云逐个 pop），同时被大尺度天气场上下推动。")]
+        public float volCloudCoverage = 0.62f;
 
-        [Range(0.00001f, 0.0005f), Tooltip("Weather map world scale: 1 metre -> map tiles. " +
-            "Smaller = bigger weather systems. 0.00004 -> one map tile spans 25 km.")]
-        public float volCloudWeatherScale = 0.00016f;
+        [Range(0.2f, 1.4f), Tooltip("云团半径占 cell 的比例。\n" +
+            "大体印象：该值 × 2 ≈ 两朵云之间最窄处，>1.4 会挤到相接。")]
+        public float volCloudSize = 0.55f;
 
-        [Range(0.0f, 2.0f), Tooltip("Domain warp strength in noise tiles - curls the " +
-            "cloud outlines instead of round cauliflower blobs.")]
-        public float volCloudWarp = 0.5f;
+        [Range(0.0f, 1.0f), Tooltip("半径随机度：0 = 每朵一样大，1 = 大小差异拉满。")]
+        public float volCloudSizeJitter = 0.6f;
 
-        [Range(0.0f, 1.5f), Tooltip("How much the weather map pushes coverage locally " +
-            "around the authored value. 0 = uniform sky (old behaviour), " +
-            "1 = strong clumping (clear gaps next to solid banks).")]
-        public float volCloudWeatherContrast = 0.6f;
+        [Range(0.0f, 1.0f), Tooltip("大尺度天气调制：天上有云系分区（这边成片、那边一片空），\n" +
+            "而不是均匀撒糖。0 = 完全随机散布。")]
+        public float volCloudWeather = 0.4f;
 
-        [Range(0.0f, 1.0f), Tooltip("Blend from the large-scale weather channel to the " +
-            "mid-scale one: 0 = only big systems, 1 = broken into individual clouds.")]
-        public float volCloudWeatherDetail = 0.22f;
+        [Header("· 单朵云形状")]
+        [Range(100f, 3000f), Tooltip("云底高度（绝对世界 Y，米）。")]
+        public float volCloudBaseHeight = 750f;
 
-        [Header("Volumetric Cloud Scattering")]
-        [Range(0.0f, 0.95f), Tooltip("Forward lobe anisotropy g. Cloud droplets scatter " +
-            "hard forward, so 0.6~0.85 is physical; 0 = isotropic (flat, fake-looking).")]
-        public float volCloudGForward = 0.75f;
+        [Range(60f, 2000f), Tooltip("单朵云的最大厚度（米）。每朵按 Thickness Jitter 变薄变厚。")]
+        public float volCloudThickness = 420f;
 
-        [Range(-0.95f, 0.0f), Tooltip("Backward lobe g - shapes the dark side away from the sun.")]
-        public float volCloudGBackward = -0.25f;
+        [Range(0.0f, 1.0f), Tooltip("厚度随机度：0 = 每朵一样高。")]
+        public float volCloudHeightJitter = 0.6f;
 
-        [Range(0.0f, 1.0f), Tooltip("Weight of the forward lobe. Higher = stronger flare " +
-            "towards the sun.")]
-        public float volCloudPhaseForward = 0.65f;
+        [Range(0.2f, 0.8f), Tooltip("圆顶指数：0.25 = 宽而扁（层云/高积云），0.7 = 圆墩（积云）。\n" +
+            "底永远是平的（凝结面），这个值只管顶部收得快不快。")]
+        public float volCloudDome = 0.5f;
 
-        [Range(1, 4), Tooltip("Multiple-scattering octaves. 1 = single scattering only " +
-            "(cloud cores burn to flat grey); 3~4 gives the glowing interiors.")]
-        public int volCloudScatterOctaves = 3;
+        [Range(0.0f, 1.0f), Tooltip("轮廓域扭曲：把采样点推开，云缘变成卷的而不是圆的。")]
+        public float volCloudWarp = 0.55f;
 
-        [Header("Volumetric Cloud Profile")]
-        [Range(0.0f, 3.0f), Tooltip("How strongly the weather map decides cloud TYPE " +
-            "(stratus <-> cumulus), not just amount.")]
-        public float volCloudTypeContrast = 1.4f;
+        [Range(0.0002f, 0.02f), Tooltip("扭曲 / 侵蚀噪声的频率（每米循环数）。\n" +
+            "500m 的云配 0.002 合适；太大云缘会碎成粉刺，太小变成大块光斑。")]
+        public float volCloudNoiseFreq = 0.002f;
 
-        [Range(-1.0f, 1.0f), Tooltip("Bias of the weather -> type mapping. 0 = neutral, " +
-            "positive favours tall cumulus, negative favours flat stratus.")]
-        public float volCloudTypeBias = 0.25f;
+        [Range(0.0f, 1.0f), Tooltip("边缘侵蚀：0 = 光滑椭球，1 = 重度椰菜花咬口。\n" +
+            "只啃表面带，云芯实心不动（Remap 形式，覆盖率语义不被破坏）。")]
+        public float volCloudDetail = 0.7f;
 
-        [Range(0.0f, 0.5f), Tooltip("Extra coverage near the cloud base. Tiled 3D noise " +
-            "carves odd shapes out of distant low-angle clouds; firming up the base hides it.")]
-        public float volCloudBaseCoverageBoost = 0.12f;
+        [Header("· 密度与步进")]
+        [Range(0.2f, 4.0f), Tooltip("密度 / 消光。1.5~2.5 是厚云，>3 近乎不透明。")]
+        public float volCloudDensity = 1.9f;
 
-        [Range(0.0f, 1.0f), Tooltip("Aerial perspective on the clouds: distant cloud is " +
-            "extincted and re-tinted by the sky instead of just fading alpha.")]
-        public float volCloudAerialPerspective = 0.8f;
-
-        [Range(0.0f, 1.0f), Tooltip("Sky coverage: 0 = clear, 1 = overcast. With a weather " +
-            "map this stays the global average - the map moves it up and down locally.")]
-        public float volCloudCoverage = 0.22f;
-
-        [Range(100.0f, 4000.0f), Tooltip("Cloud slab base height - absolute world Y (m).")]
-        public float volCloudBaseHeight = 800.0f;
-
-        [Range(50.0f, 2000.0f), Tooltip("Cloud slab thickness (m).")]
-        public float volCloudThickness = 300.0f;
-
-        [Range(0.0001f, 0.01f), Tooltip("World UV scale - larger = smaller, denser clouds.")]
-        public float volCloudScale = 0.00042f;
-
-        [Range(0.1f, 4.0f), Tooltip("Density / absorption - higher = thicker, darker clouds.")]
-        public float volCloudDensity = 1.7f;
-
-        [Range(8, 48), Tooltip("View ray march steps. Higher = smoother, slower.")]
+        [Range(8, 64), Tooltip("视线步进次数（质量 / 性能开关）。")]
         public int volCloudMarchSteps = 32;
 
-        [Range(2, 8), Tooltip("Sun light march steps. Higher = softer shading.")]
-        public int volCloudLightSteps = 5;
+        [Range(1, 8), Tooltip("朝太阳的自阴影步进次数。")]
+        public int volCloudLightSteps = 4;
 
-        [Range(0.0f, 1.0f), Tooltip("Detail erosion strength - carves cauliflower edges.")]
-        public float volCloudDetail = 0.4f;
+        [Header("· 散射")]
+        [Range(0.0f, 0.95f), Tooltip("前叶各向异性 g。云滴强烈前向散射，0.6~0.85 是物理区间；\n" +
+            "0 = 各向同性，云会发平发假。")]
+        public float volCloudGForward = 0.75f;
 
-        [Range(0.0f, 100.0f), Tooltip("Wind drift speed.")]
+        [Range(-0.95f, 0.0f), Tooltip("后叶 g：决定背朝太阳那一侧的整体明暗形状。")]
+        public float volCloudGBackward = -0.25f;
+
+        [Range(0.0f, 1.0f), Tooltip("前叶权重：越高，朝太阳方向越炸亮。")]
+        public float volCloudPhaseForward = 0.65f;
+
+        [Range(1, 4), Tooltip("多重散射倍频数。1 = 只做单次散射（云芯烧成死灰），\n" +
+            "3~4 才有发亮的内部。")]
+        public int volCloudScatterOctaves = 3;
+
+        [Range(0.0f, 1.0f), Tooltip("云的大气透视：远处云按「消光 + 内散射」染进天空色，\n" +
+            "而不是只淡出 alpha（只淡 alpha = 一块悬在半空的白斑）。")]
+        public float volCloudAerialPerspective = 0.8f;
+
+        [Header("· 风")]
+        [Range(0.0f, 40.0f), Tooltip("风速（米/秒）。整片云团网格随风平移。")]
         public float volCloudWindSpeed = 7.0f;
 
-        [Range(1.0f, 6.0f), Tooltip("Cel band count for the cloud light response.")]
+        [Header("· 风格化")]
+        [Range(1.0f, 6.0f), Tooltip("cel 明暗分区数。<= 1.5 关闭量化（连续渐变）。")]
         public float volCloudShadeSteps = 3.0f;
 
-        [Range(0.0f, 0.5f), Tooltip("Ease-in-out softness of the cel band edges.")]
+        [Range(0.0f, 0.5f), Tooltip("分区边界的软化。0 = 硬边，0.5 = 几乎连续。")]
         public float volCloudShadeSmooth = 0.35f;
 
-        [Range(0.0f, 2.0f), Tooltip("Silver-lining (back-lit edge) intensity.")]
+        [Range(0.0f, 2.0f), Tooltip("逆光银边强度（按体素密度门控，不会在轮廓外撒点）。")]
         public float volCloudSilverIntensity = 0.3f;
 
-        [Range(1.0f, 16.0f), Tooltip("Silver-lining tightness around the sun.")]
+        [Range(1.0f, 16.0f), Tooltip("银边聚拢度：越大只有正对太阳的云缘才亮。")]
         public float volCloudSilverPower = 8.0f;
 
-        [Tooltip("Temporal accumulation (TAA-style smoothing) for volumetric " +
-            "clouds: blends each frame with reprojected history so marching " +
-            "banding/dither converge away over a few frames. Turn OFF for " +
-            "crisp single-frame clouds (also freezes the march jitter so it " +
-            "doesn't shimmer) at the cost of visible dither grain.")]
+        [Header("· 时间累积")]
+        [Tooltip("时序累积（TAA 式平滑）：逐帧把步进抖动收敛掉。关掉不分配历史缓冲、\n" +
+            "抖动冻结成静态图案（适合单帧截图或完全不想看拖影的场景）。")]
         public bool volCloudTemporalEnabled = true;
 
-        [Tooltip("体积云调试视图 —— 用来区分「没有云」和「云画了但看不见」。\n" +
-                 "Coverage = 累积覆盖度，MarchRange = 射线与云层的相交区间，\n" +
-                 "Field = 云层中点的原始噪声值，Profile = 高度剖面，Lod = 选用的 mip。\n" +
-                 "红色 = 射线根本没穿过云层。")]
-        public CloudDebugView volCloudDebug = CloudDebugView.Off;
-
-        [Range(0.0f, 0.9f), Tooltip("Temporal accumulation weight. Higher = smoother " +
-            "(marching banding/dither converge away over a few frames) but more ghosting " +
-            "on fast camera moves. 0 disables history blending.")]
+        [Range(0.0f, 0.9f), Tooltip("累积权重：越高越平滑，但快速运镜拖影更明显。0 = 关闭混合。")]
         public float volCloudTemporal = 0.8f;
+
+        [Header("· 调试")]
+        [Tooltip("体积云调试视图。\n" +
+                 "Coverage = 应看到【离散云团】之间留着天空；Instance = 每个 cell 的存活权重；\n" +
+                 "Height = 竖向渐变；Edge = 轮廓边带；Depth = 相交起点（红 = 没穿过云层）；\n" +
+                 "Scatter = 散射响应。整屏黑说明密度模型没吃到东西，不是「看得见看不见」的问题。")]
+        public CloudDebugView volCloudDebug = CloudDebugView.Off;
 
         // ----- Sky gradient (5 colour stops) -------------------------------
         // The five stops below describe the DAY sky. Sunset and night

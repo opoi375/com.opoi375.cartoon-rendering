@@ -1,4 +1,27 @@
 # Changelog
+## v1.9.0
+
+### Removed
+- **The 2D texture cloud layer**: a texture projected onto a virtual plane - no volume, no shading, no self-shadowing - which only fought the volumetric layer. The `cloudHeight` / `cloudThreshold` / `cloudScale` / `cloudIntensity` / `cloudTexture` fields and the skybox shader's `EvaluateClouds` / `CloudFBM` / `ValueNoise2D` and their properties are gone (`cloudColor` stays, as the cloud tint)
+- **The previous volumetric implementation and its noise pipeline**: the `CloudNoise3D` / `CloudShape2D` assets, the two `Tools > Cloud > Bake ...` menus, `CloudNoiseTextureBaker`, and with them the whole class of "texture reference is null so nothing draws" silent failures
+
+### Added
+- **A discrete cloud-instance density model**: the world plane is split into cells (`volCloudSpacing`), each cloud gets its own hash deciding whether it exists and how big and thick it is, and density is the max over the candidate ellipsoid profiles. **The old model thresholded a continuous noise by coverage - a continuous random field has a percolation threshold (around 0.3), and past it the field becomes topologically connected, so the sky is inevitably one mass or one solid deck. That is a topology problem; tuning the noise and the erosion cannot fix it.** The cell model leaves gaps between clouds by construction
+- Radius profile `(1 - h^2)^dome`: flat base (condensation plane), domed top, with `Dome` selecting stratus vs cumulus
+- **Outline domain warp plus surface-band erosion** (procedural 3D value noise in the shader, so no baked texture and nothing that can go missing)
+- **Large-scale weather modulation** (`Weather`): a low-frequency noise pushes the local coverage, so the sky has weather systems (a bank here, clear over there) instead of an even scatter
+- **Seven debug views**: Coverage / Instance / Height / Edge / Depth / Scatter / **integral diagnostic** (R = real opacity, G = cloud brightness - one capture distinguishes "too thin" from "too dark")
+
+### Fixed
+- **Temporal accumulation washed the clouds into a translucent veil**: the history buffer is systematically dimmer than the current frame, so at weight 0.9 only ~10% of the clouds remained. A guard now requires at least one rendered frame before history is sampled, but the root cause is unresolved - `volCloudTemporalEnabled` is therefore **off by default**, and the known issue is called out in the tooltip and the docs
+- **Alpha was cut by 35% even at noon**: `smoothstep(0.0, -0.12, _CartoonSunDirection.y)` had its parameters in the wrong order. The direction is *sun to scene*, so above the horizon `.y` is negative, and a reversed smoothstep saturates that to 1
+- The debug view ranges were off by one (Coverage actually displayed Instance), and Instance only wrote its alive weight when a cloud was hit, keeping its default of 1.0 otherwise - an entirely white view with no information. It now queries the nearest cell directly
+- The march range was tightened to `baseY*10`: at 24 km with 32 steps each step spanned ~700 m, so a 600 m cloud could be stepped straight over (an empty far field)
+- Domain warp was permanently disabled by a lock: the first candidate that failed the "inside the cloud" test set `warpDone`, so no warp was ever computed and outlines stayed smooth ellipsoids
+- The soft edge `rad*0.22` stretched a ~230 m gradient band onto a 1 km cloud, blurring the silhouette into a ball. Tightened to `rad*0.05`
+- Nine dead keys removed from the presets (they referenced the deleted texture assets)
+- The test assembly gained Core / Universal RP references: the newly added SSIL test uses `VolumeComponent` / `ScriptableRendererFeature` but `CartoonRendering.Editor.Tests.asmdef` did not reference the RP assemblies, which blocked compilation of the whole project
+
 ## v1.7.0
 
 ### Fixed

@@ -18,7 +18,6 @@ namespace CartoonRendering.Editor
 
         private bool _foldoutSun       = true;
         private bool _foldoutStars     = true;
-        private bool _foldoutClouds    = true;
         private bool _foldoutVolClouds = true;
         private bool _foldoutGradient  = true;
         private bool _foldoutSunset    = true;
@@ -39,29 +38,10 @@ namespace CartoonRendering.Editor
         private SerializedProperty _starDensity;
         private SerializedProperty _starTexture;
 
-        private SerializedProperty _cloudColor;
-        private SerializedProperty _cloudHeight;
-        private SerializedProperty _cloudThreshold;
-        private SerializedProperty _cloudScale;
-        private SerializedProperty _cloudIntensity;
-        private SerializedProperty _cloudTexture;
 
-        private SerializedProperty _volEnabled;
-        private SerializedProperty _volNoiseTex;
-        private SerializedProperty _volCoverage;
-        private SerializedProperty _volBaseHeight;
-        private SerializedProperty _volThickness;
-        private SerializedProperty _volScale;
-        private SerializedProperty _volDensity;
-        private SerializedProperty _volMarchSteps;
-        private SerializedProperty _volLightSteps;
-        private SerializedProperty _volDetail;
-        private SerializedProperty _volWindSpeed;
-        private SerializedProperty _volShadeSteps;
-        private SerializedProperty _volShadeSmooth;
-        private SerializedProperty _volSilverIntensity;
-        private SerializedProperty _volSilverPower;
-        private SerializedProperty _volTemporal;
+        // 体积云字段按名字前缀自动收集，不逐个列（v1.8.0 重写后字段集变动频繁，
+        // 列表式的写法每次都要同步改三处，已经漏过一次）。
+        private SerializedProperty _cloudColor;
 
         private SerializedProperty _topColor;
         private SerializedProperty _middleColor;
@@ -100,29 +80,8 @@ namespace CartoonRendering.Editor
             _starDensity      = serializedObject.FindProperty(nameof(CartoonProceduralSky.starDensity));
             _starTexture      = serializedObject.FindProperty(nameof(CartoonProceduralSky.starTexture));
 
-            _cloudColor       = serializedObject.FindProperty(nameof(CartoonProceduralSky.cloudColor));
-            _cloudHeight      = serializedObject.FindProperty(nameof(CartoonProceduralSky.cloudHeight));
-            _cloudThreshold   = serializedObject.FindProperty(nameof(CartoonProceduralSky.cloudThreshold));
-            _cloudScale       = serializedObject.FindProperty(nameof(CartoonProceduralSky.cloudScale));
-            _cloudIntensity   = serializedObject.FindProperty(nameof(CartoonProceduralSky.cloudIntensity));
-            _cloudTexture     = serializedObject.FindProperty(nameof(CartoonProceduralSky.cloudTexture));
 
-            _volEnabled         = serializedObject.FindProperty(nameof(CartoonProceduralSky.volumetricCloudsEnabled));
-            _volNoiseTex        = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudNoiseTexture));
-            _volCoverage        = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudCoverage));
-            _volBaseHeight      = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudBaseHeight));
-            _volThickness       = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudThickness));
-            _volScale           = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudScale));
-            _volDensity         = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudDensity));
-            _volMarchSteps      = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudMarchSteps));
-            _volLightSteps      = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudLightSteps));
-            _volDetail          = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudDetail));
-            _volWindSpeed       = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudWindSpeed));
-            _volShadeSteps      = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudShadeSteps));
-            _volShadeSmooth     = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudShadeSmooth));
-            _volSilverIntensity = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudSilverIntensity));
-            _volSilverPower     = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudSilverPower));
-            _volTemporal        = serializedObject.FindProperty(nameof(CartoonProceduralSky.volCloudTemporal));
+            _cloudColor = serializedObject.FindProperty(nameof(CartoonProceduralSky.cloudColor));
 
             _topColor         = serializedObject.FindProperty(nameof(CartoonProceduralSky.topColor));
             _middleColor      = serializedObject.FindProperty(nameof(CartoonProceduralSky.middleColor));
@@ -170,44 +129,21 @@ namespace CartoonRendering.Editor
                 EditorGUILayout.PropertyField(_starTexture);
             });
 
-            _foldoutClouds = DrawSection("Clouds", _foldoutClouds, () =>
+            _foldoutVolClouds = DrawSection("Clouds", _foldoutVolClouds, () =>
             {
-                EditorGUILayout.PropertyField(_cloudIntensity);
                 EditorGUILayout.PropertyField(_cloudColor);
-                EditorGUILayout.PropertyField(_cloudHeight);
-                EditorGUILayout.PropertyField(_cloudThreshold);
-                EditorGUILayout.PropertyField(_cloudScale);
-                EditorGUILayout.PropertyField(_cloudTexture);
-            });
 
-            _foldoutVolClouds = DrawSection("Volumetric Clouds", _foldoutVolClouds, () =>
-            {
-                EditorGUILayout.PropertyField(_volEnabled);
-                using (new EditorGUI.DisabledScope(!_volEnabled.boolValue))
+                // 自动收集：打开折叠时先让 _foldoutEnabled 之类的状态属性写回，
+                // 再遍历可见属性，凡名字是 volumetricCloudsEnabled / volCloud* 的都画。
+                var prop = serializedObject.GetIterator();
+                bool enterChildren = true;
+                while (prop.NextVisible(enterChildren))
                 {
-                    EditorGUILayout.PropertyField(_volNoiseTex);
-                    EditorGUILayout.PropertyField(_volCoverage);
-                    EditorGUILayout.PropertyField(_volBaseHeight);
-                    EditorGUILayout.PropertyField(_volThickness);
-                    EditorGUILayout.PropertyField(_volScale);
-                    EditorGUILayout.PropertyField(_volDensity);
-                    EditorGUILayout.PropertyField(_volMarchSteps);
-                    EditorGUILayout.PropertyField(_volLightSteps);
-                    EditorGUILayout.PropertyField(_volDetail);
-                    EditorGUILayout.PropertyField(_volWindSpeed);
-                    EditorGUILayout.PropertyField(_volShadeSteps);
-                    EditorGUILayout.PropertyField(_volShadeSmooth);
-                    EditorGUILayout.PropertyField(_volSilverIntensity);
-                    EditorGUILayout.PropertyField(_volSilverPower);
-                    EditorGUILayout.PropertyField(_volTemporal);
-
-                    if (_volNoiseTex.objectReferenceValue == null)
-                    {
-                        EditorGUILayout.HelpBox(
-                            "No 3D noise texture assigned. Bake one via:\n" +
-                            "Cartoon Rendering > Bake Cloud Noise 3D",
-                            MessageType.Warning);
-                    }
+                    enterChildren = false;
+                    string n = prop.name;
+                    if (n == nameof(CartoonProceduralSky.volumetricCloudsEnabled)
+                        || n.StartsWith("volCloud", System.StringComparison.Ordinal))
+                        EditorGUILayout.PropertyField(prop, true);
                 }
             });
 

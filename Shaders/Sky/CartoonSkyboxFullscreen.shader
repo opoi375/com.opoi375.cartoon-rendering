@@ -28,12 +28,6 @@ Shader "CartoonRendering/CartoonSkyboxFullscreen"
         _CartoonHasStarMap          ("Use Star Map", Range(0, 1))         = 0
         [NoScaleOffset] _CartoonStarMap ("Star Noise Map", 2D)            = "white" {}
 
-        [Header(Clouds)]
-        _CartoonCloudColor          ("Cloud Color", Color)                = (1, 1, 1, 1)
-        _CartoonCloudParams         ("Cloud Params (height, threshold, scale, intensity)", Vector) = (60, 0.45, 1, 1)
-        _CartoonHasCloudMap         ("Use Cloud Map", Range(0, 1))        = 0
-        [NoScaleOffset] _CartoonCloudMap ("Cloud Map", 2D)                = "white" {}
-
         [Header(Gradient Day)]
         _CartoonTopColor            ("Top Color", Color)                  = (0.15, 0.35, 0.75, 1)
         _CartoonMiddleColor         ("Middle Color", Color)               = (0.55, 0.75, 0.95, 1)
@@ -104,12 +98,6 @@ Shader "CartoonRendering/CartoonSkyboxFullscreen"
             float4 _CartoonStarParams;     // x=intensity, y=size, z=scale, w=density
             TEXTURE2D(_CartoonStarMap); SAMPLER(sampler_CartoonStarMap);
             float  _CartoonHasStarMap;
-
-            // Bill-board style clouds projected onto a virtual plane.
-            float4 _CartoonCloudColor;
-            float4 _CartoonCloudParams;    // x=plane height, y=threshold, z=scale, w=intensity
-            TEXTURE2D(_CartoonCloudMap); SAMPLER(sampler_CartoonCloudMap);
-            float  _CartoonHasCloudMap;
 
             // Half-resolution volumetric cloud layer rendered by
             // CartoonVolumetricClouds (premultiplied rgb + coverage a).
@@ -344,79 +332,6 @@ Shader "CartoonRendering/CartoonSkyboxFullscreen"
                        * _CartoonStarParams.x;
             }
 
-            // ----------------------------------------------------------------
-            // Bill-board style clouds: the view ray is intersected with a
-            // virtual horizontal plane and the cloud texture (or procedural
-            // FBM noise when no texture is assigned) is sampled there.
-            // ----------------------------------------------------------------
-            float ValueNoise2D(float2 p)
-            {
-                float2 i = floor(p);
-                float2 f = frac(p);
-                float2 s = f * f * (3.0 - 2.0 * f);
-                float a = Hash21(i);
-                float b = Hash21(i + float2(1.0, 0.0));
-                float c = Hash21(i + float2(0.0, 1.0));
-                float d = Hash21(i + float2(1.0, 1.0));
-                return lerp(lerp(a, b, s.x), lerp(c, d, s.x), s.y);
-            }
-
-            float CloudFBM(float2 p)
-            {
-                float n = 0.0;
-                n += 0.55 * ValueNoise2D(p);
-                n += 0.28 * ValueNoise2D(p * 2.13 + 11.7);
-                n += 0.17 * ValueNoise2D(p * 4.41 + 47.3);
-                return n;
-            }
-
-            float3 EvaluateClouds(float3 viewDirWS)
-            {
-                if (_CartoonCloudParams.w <= 0.0)
-                    return 0.0;
-
-                float3 dir = normalize(viewDirWS);
-                // Clouds only above the horizon.
-                if (dir.y < 0.03)
-                    return 0.0;
-
-                // Intersect the ray with the cloud plane at the given
-                // height (relative to the camera).
-                float t = max(_CartoonCloudParams.x, 1.0) / dir.y;
-                float2 worldXZ = _WorldSpaceCameraPos.xz + dir.xz * t;
-                float2 planeUV = worldXZ * 0.008 * _CartoonCloudParams.z;
-
-                // Gentle drift over time.
-                planeUV += float2(_Time.y * 0.004, _Time.y * 0.0017);
-
-                float cloud;
-                if (_CartoonHasCloudMap > 0.5)
-                {
-                    cloud = SAMPLE_TEXTURE2D_LOD(_CartoonCloudMap, sampler_CartoonCloudMap,
-                                                 planeUV, 0).r;
-                }
-                else
-                {
-                    cloud = CloudFBM(planeUV * 3.0);
-                }
-
-                // Threshold into soft bill-board shapes.
-                float th = _CartoonCloudParams.y;
-                cloud = smoothstep(th, th + 0.28, cloud);
-
-                // Fade near the horizon where grazing rays stretch the plane.
-                cloud *= smoothstep(0.03, 0.22, dir.y);
-
-                // Clouds darken at night and warm up at sunset.
-                float sunY = GetSunElevation();
-                float dayW = smoothstep(-0.05, 0.20, sunY);
-                float sunsetW = smoothstep(-0.15, 0.0, sunY) * (1.0 - dayW);
-                float3 litCol = lerp(_CartoonCloudColor.rgb * 0.12,
-                                     _CartoonCloudColor.rgb, dayW);
-                litCol = lerp(litCol, _CartoonCloudColor.rgb * float3(1.0, 0.62, 0.45), sunsetW);
-
-                return litCol * cloud * _CartoonCloudParams.w;
-            }
 
             // ----------------------------------------------------------------
             // Fragment shader.
@@ -454,14 +369,13 @@ Shader "CartoonRendering/CartoonSkyboxFullscreen"
                 float vertical = saturate((viewDirWS.y - _WorldBendSkyDip) * 0.5 + 0.5);
 
                 float3 sky = EvaluateSkyGradient(vertical);
-                float3 clouds = EvaluateClouds(viewDirWS);
                 float  sun = EvaluateSunDisc(viewDirWS);
                 float3 stars = EvaluateStars(viewDirWS);
 
-                // Stars sit behind the clouds.
+                // 2D 平流云层已删除（Clouds）：它是一张贴到虚拟平面上的
+                // 贴图，没有体积、没有明暗、没有自阴影，和体积云叠在一起只会
+                // 互相打架。天上的云现在只由 CartoonVolumetricClouds 一家负责。
                 float3 result = sky + stars;
-                result = lerp(result, clouds + stars * 0.15,
-                              saturate(dot(clouds, 0.333) * 4.0));
                 result += GetSunDiscColor() * sun;
 
                 // Volumetric cloud layer (half-res RT, premultiplied):
