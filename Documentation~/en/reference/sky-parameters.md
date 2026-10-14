@@ -58,6 +58,14 @@ Complete parameter table of the `CartoonProceduralSky` ScriptableObject (default
 | `volCloudShadeSmooth` | 0.35 | Cel band edge softness |
 | `volCloudSilverIntensity` | 0.3 | Back-lit rim (gated by voxel density, so it cannot sprinkle dots outside the silhouette) |
 | `volCloudSilverPower` | 8 | Rim tightness around the sun |
+| `volCloudGForward` | 0.75 | Forward lobe anisotropy g. Cloud droplets scatter hard forward, so 0.6~0.85 is physical; 0 = isotropic (flat, fake) |
+| `volCloudGBackward` | -0.25 | Backward lobe g - shapes the side facing away from the sun |
+| `volCloudPhaseForward` | 0.65 | Forward lobe weight; higher flares harder towards the sun |
+| `volCloudScatterOctaves` | 3 | Multiple-scattering octaves. 1 = single scattering only (cores burn to flat grey), 3~4 gives glowing interiors |
+| `volCloudTypeContrast` | 1.4 | How strongly weather selects cloud TYPE (stratus <-> cumulus), not just amount |
+| `volCloudTypeBias` | 0.25 | Bias of the weather -> type mapping. Positive favours tall cumulus, negative flat stratus |
+| `volCloudBaseCoverageBoost` | 0.12 | Extra coverage near the cloud base, suppressing the odd shapes tiled noise carves at low elevation |
+| `volCloudAerialPerspective` | 0.8 | Aerial perspective on clouds: distant cloud is extincted and re-tinted towards the sky instead of only fading alpha |
 | `volCloudDebug` | Off | Debug views: Coverage / MarchRange / Field / Profile / Lod / Weather |
 | `volCloudTemporalEnabled` | true | Temporal accumulation toggle (off frees history buffers, freezes jitter) |
 | `volCloudTemporal` | 0.8 | Accumulation weight (0~0.9, 0 = no blending) |

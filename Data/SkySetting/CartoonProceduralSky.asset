@@ -33,17 +33,17 @@ MonoBehaviour:
   volCloudShapeTexture: {fileID: 2800000, guid: 380d42146fe769f4292a390b553a8f77, type: 2}
   volCloudWeatherScale: 0.00016
   volCloudWarp: 0.5
-  volCloudWeatherContrast: 0.55
+  volCloudWeatherContrast: 0.6
   volCloudWeatherDetail: 0.22
   volCloudNoiseTexture: {fileID: 11700000, guid: 91f0fe2079f5a1e4dbfc1acf6045de32, type: 2}
-  volCloudCoverage: 0.26
+  volCloudCoverage: 0.22
   volCloudBaseHeight: 800
   volCloudThickness: 300
-  volCloudScale: 0.00048
+  volCloudScale: 0.00042
   volCloudDensity: 1.7
   volCloudMarchSteps: 32
   volCloudLightSteps: 6
-  volCloudDetail: 0.7
+  volCloudDetail: 0.4
   volCloudWindSpeed: 7
   volCloudShadeSteps: 3
   volCloudShadeSmooth: 0.35

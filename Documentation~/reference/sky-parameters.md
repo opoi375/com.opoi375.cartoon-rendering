@@ -58,6 +58,14 @@
 | `volCloudShadeSmooth` | 0.35 | 分区边界软化 |
 | `volCloudSilverIntensity` | 0.3 | 逆光银边强度（按体素密度门控，不会在轮廓外撒白点） |
 | `volCloudSilverPower` | 8 | 银边聚拢度 |
+| `volCloudGForward` | 0.75 | 前叶各向异性 g。云滴强烈前向散射，0.6~0.85 是物理区间；0 = 各向同性（发平、发假） |
+| `volCloudGBackward` | -0.25 | 后叶 g，决定背朝太阳那一侧的整体明暗形状 |
+| `volCloudPhaseForward` | 0.65 | 前叶权重，越高朝太阳方向越炸亮 |
+| `volCloudScatterOctaves` | 3 | 多重散射倍频数。1 = 只做单次散射（云芯烧成死灰），3~4 才有发亮的内部 |
+| `volCloudTypeContrast` | 1.4 | 天气决定【云型】（层云↔积云）的强度，而不只是决定云量 |
+| `volCloudTypeBias` | 0.25 | 天气→云型的偏置。正=偏竖厚积云，负=偏摊平层云 |
+| `volCloudBaseCoverageBoost` | 0.12 | 云底附近额外补的覆盖度，压住 tiled 噪声在低仰角啃出的怪形 |
+| `volCloudAerialPerspective` | 0.8 | 云的大气透视：远处按消光+内散射染进天空色，而不是只淡出 alpha |
 | `volCloudDebug` | Off | 调试视图：Coverage / MarchRange / Field / Profile / Lod / Weather |
 | `volCloudTemporalEnabled` | true | 时序累积开关（关闭时不分配历史缓冲、jitter 冻结） |
 | `volCloudTemporal` | 0.8 | 累积权重（0~0.9，0 = 关闭混合） |

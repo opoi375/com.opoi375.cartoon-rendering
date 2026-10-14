@@ -1,4 +1,30 @@
 # Changelog
+## v1.7.0
+
+### Fixed
+- **The noise generator could not produce cloud structure at all** (only visible after dumping the shipped volume to an image): the shape channel was a field of **soft blobs all at the same scale** - no large connected masses, no pinched cauliflower lobes. No lighting work can rescue that; it renders as cotton wool. Three causes:
+  - `PerlinFbm(baseFreq 4, 6 octaves)` spread the energy across the mid and high octaves, so the one octave that is supposed to *be* the cloud mass never dominated. Now base frequency 2 with 3 octaves
+  - **There was no billow at all.** The fold `1 - abs(2n - 1)` is what creates bulge-and-pinch; plain FBM at any octave count stays a Gaussian-ish soft ball
+  - The sharp Worley cell boundaries (the other half of the creasing) were diluted away by the tie-break mix and then stretched flat by the CDF, leaving effectively just Perlin
+- **Billow applied to the wrong layer**: the first attempt billowed the mass field, which turned it into a bimodal ridge field - past the threshold only filaments survive, so clouds became wisps of gauze. Per Nubis the mass field must stay **smooth** (it only decides where the banks are and how big), and the **creases come from the billowed Worley dilator**
+- **Multiple scattering was not normalised**: more octaves brightened the entire sky, and at 3 octaves the cloud base was lifted to 5x single scattering, destroying the bright-crown / dark-base contrast that is the strongest 3D cue cumulus have. The sum is now divided by its zero-optical-depth value, so 1 means fully transparent
+- **The energy-conserving integral divided by sigma twice**: `L` is already incident radiance (the emission term is j = sigma*L), so dividing again re-introduced 1/sigma - roughly 20x over-exposure, which saturated the cel quantiser into one flat white sheet
+- **Cloud bases were lit far too bright**: the ambient term only interpolated horizon to zenith, and the horizon colour is the brightest band in the sky, so the signature "white crown on a dark flat base" disappeared. Added a height term that darkens towards the base (a cloud base looks at a small solid angle of sky and is occluded by itself)
+- **A grey outline around every cloud** (the main source of the sticker look): the threshold band was too wide and the powder floor too high; both tightened
+
+### Added
+- **A scattering model**: dual-lobe Henyey-Greenstein phase function (`volCloudGForward` / `volCloudGBackward` / `volCloudPhaseForward`) plus Wrenninge-style octave multiple scattering (`volCloudScatterOctaves`). The previous lighting had **no angular dependence whatsoever**, while "clouds flare towards the sun" is the single strongest realism cue
+- **Weather now selects cloud type** (Nubis dimensional profile): `volCloudTypeContrast` / `volCloudTypeBias`. The weather map no longer only decides *how much* cloud, it decides whether this patch is a flattened stratus sheet or a vertically grown cumulus. Both keep a flat base (a cloud base is a condensation surface) - what changes is how far the cloud grows upward
+- **`volCloudBaseCoverageBoost`**: extra coverage near the cloud base. Tiled 3D noise carves odd shapes out of distant low-angle clouds; firming up the base suppresses it
+- **`volCloudAerialPerspective`**: distant cloud is extincted *and* re-tinted towards the sky colour instead of merely fading alpha. Fading alpha alone leaves a translucent white patch hanging in the sky, unrelated to the atmosphere behind it
+- **Domain warp inside the bake**: sample coordinates are pushed by a second noise field first. Without it, isotropic FBM produces round blobs, while real cloud folds are sheared and stretched
+
+### Changed
+- Detail erosion switched from plain subtraction to the Nubis form `Remap(Base, Detail, 1, 0, 1) = (Base - Detail) / (1 - Detail)`. Subtraction drags the interior down with the edges (thick clouds go grey); Remap keeps Base=1 at 1, so solid cores are untouched and only the rim is chewed - which is what makes the bite read as cauliflower. It is also monotone, so the CDF normalisation's "coverage = literal fraction" property survives
+- High-frequency detail now fades out with LOD to a 35% floor instead of to zero: with no remaining bite, distant clouds lose every scale reference, and small features are precisely what puts the large ones in perspective
+- Colour and transmittance share one `sigma * ds`. The old code used `dn^2 * sigma * 2.2` for colour and a separately hand-tuned factor for alpha, i.e. two independent knobs pretending to be one quantity
+- Defaults recalibrated for the new noise: `coverage` 0.26→0.22, `scale` 0.00048→0.00042, `detail` 0.7→0.4, `weatherContrast` 0.55→0.6, `typeBias` 0→0.25. The new mass field is far more connected, so the same numbers now cover much more sky
+
 ## v1.6.0
 
 ### Fixed

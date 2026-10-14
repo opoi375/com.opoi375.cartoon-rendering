@@ -128,15 +128,48 @@ namespace CartoonRendering
         [Range(0.0f, 1.5f), Tooltip("How much the weather map pushes coverage locally " +
             "around the authored value. 0 = uniform sky (old behaviour), " +
             "1 = strong clumping (clear gaps next to solid banks).")]
-        public float volCloudWeatherContrast = 0.55f;
+        public float volCloudWeatherContrast = 0.6f;
 
         [Range(0.0f, 1.0f), Tooltip("Blend from the large-scale weather channel to the " +
             "mid-scale one: 0 = only big systems, 1 = broken into individual clouds.")]
         public float volCloudWeatherDetail = 0.22f;
 
+        [Header("Volumetric Cloud Scattering")]
+        [Range(0.0f, 0.95f), Tooltip("Forward lobe anisotropy g. Cloud droplets scatter " +
+            "hard forward, so 0.6~0.85 is physical; 0 = isotropic (flat, fake-looking).")]
+        public float volCloudGForward = 0.75f;
+
+        [Range(-0.95f, 0.0f), Tooltip("Backward lobe g - shapes the dark side away from the sun.")]
+        public float volCloudGBackward = -0.25f;
+
+        [Range(0.0f, 1.0f), Tooltip("Weight of the forward lobe. Higher = stronger flare " +
+            "towards the sun.")]
+        public float volCloudPhaseForward = 0.65f;
+
+        [Range(1, 4), Tooltip("Multiple-scattering octaves. 1 = single scattering only " +
+            "(cloud cores burn to flat grey); 3~4 gives the glowing interiors.")]
+        public int volCloudScatterOctaves = 3;
+
+        [Header("Volumetric Cloud Profile")]
+        [Range(0.0f, 3.0f), Tooltip("How strongly the weather map decides cloud TYPE " +
+            "(stratus <-> cumulus), not just amount.")]
+        public float volCloudTypeContrast = 1.4f;
+
+        [Range(-1.0f, 1.0f), Tooltip("Bias of the weather -> type mapping. 0 = neutral, " +
+            "positive favours tall cumulus, negative favours flat stratus.")]
+        public float volCloudTypeBias = 0.25f;
+
+        [Range(0.0f, 0.5f), Tooltip("Extra coverage near the cloud base. Tiled 3D noise " +
+            "carves odd shapes out of distant low-angle clouds; firming up the base hides it.")]
+        public float volCloudBaseCoverageBoost = 0.12f;
+
+        [Range(0.0f, 1.0f), Tooltip("Aerial perspective on the clouds: distant cloud is " +
+            "extincted and re-tinted by the sky instead of just fading alpha.")]
+        public float volCloudAerialPerspective = 0.8f;
+
         [Range(0.0f, 1.0f), Tooltip("Sky coverage: 0 = clear, 1 = overcast. With a weather " +
             "map this stays the global average - the map moves it up and down locally.")]
-        public float volCloudCoverage = 0.26f;
+        public float volCloudCoverage = 0.22f;
 
         [Range(100.0f, 4000.0f), Tooltip("Cloud slab base height - absolute world Y (m).")]
         public float volCloudBaseHeight = 800.0f;
@@ -145,7 +178,7 @@ namespace CartoonRendering
         public float volCloudThickness = 300.0f;
 
         [Range(0.0001f, 0.01f), Tooltip("World UV scale - larger = smaller, denser clouds.")]
-        public float volCloudScale = 0.00048f;
+        public float volCloudScale = 0.00042f;
 
         [Range(0.1f, 4.0f), Tooltip("Density / absorption - higher = thicker, darker clouds.")]
         public float volCloudDensity = 1.7f;
@@ -157,7 +190,7 @@ namespace CartoonRendering
         public int volCloudLightSteps = 5;
 
         [Range(0.0f, 1.0f), Tooltip("Detail erosion strength - carves cauliflower edges.")]
-        public float volCloudDetail = 0.7f;
+        public float volCloudDetail = 0.4f;
 
         [Range(0.0f, 100.0f), Tooltip("Wind drift speed.")]
         public float volCloudWindSpeed = 7.0f;

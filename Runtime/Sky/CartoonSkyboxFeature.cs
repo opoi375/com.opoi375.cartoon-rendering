@@ -59,6 +59,8 @@ namespace CartoonRendering
         private static bool s_WeatherMissingWarned;
         private static readonly int kCloudShape2DId      = Shader.PropertyToID("_CloudShape2D");
         private static readonly int kCloudWeatherId      = Shader.PropertyToID("_CloudWeatherParams");
+        private static readonly int kCloudScatterId      = Shader.PropertyToID("_CloudScatterParams");
+        private static readonly int kCloudProfileId      = Shader.PropertyToID("_CloudProfileParams");
 
         [Tooltip("Material using the CartoonRendering/CartoonSkyboxFullscreen shader. " +
                  "If left empty (or using an outdated shader), the feature builds one " +
@@ -455,6 +457,13 @@ namespace CartoonRendering
                     sky.volCloudWeatherContrast, sky.volCloudWeatherDetail));
                 if (sky.volCloudShapeTexture != null)
                     mat.SetTexture(kCloudShape2DId, sky.volCloudShapeTexture);
+
+                mat.SetVector(kCloudScatterId, new Vector4(
+                    sky.volCloudGForward, sky.volCloudGBackward,
+                    sky.volCloudPhaseForward, sky.volCloudScatterOctaves));
+                mat.SetVector(kCloudProfileId, new Vector4(
+                    sky.volCloudTypeContrast, sky.volCloudTypeBias,
+                    sky.volCloudBaseCoverageBoost, sky.volCloudAerialPerspective));
 
                 // 形状体积缺引用时，噪声采样恒为 0，密度永远过不了阈值 ——
                 // 症状是"云开了但天上什么都没有"，而且不报错。这正是本次

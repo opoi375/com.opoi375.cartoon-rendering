@@ -32,10 +32,34 @@
 // slider.
 //
 // Channel layout, 3D volume (R = base shape, GBA = detail):
-//   R  Perlin-Worley cloud masses, CDF-normalised
-//   G  Worley FBM, detail erosion, CDF-normalised
+//   R  billowed Perlin-Worley cloud MASSES (low frequency, CDF-normalised)
+//   G  billowed Worley lobes, detail erosion
 //   B  same at 2x frequency
-//   A  same at 4x frequency
+//   A  wispy high-frequency Perlin for edge fuzz
+//
+// ----------------------------------------------------------------------------
+// Why the first version of this bake could not produce good clouds:
+//
+// Dumping the shipped volume to an image showed a field of soft blobs that
+// were all the SAME scale, with no hierarchy and no convoluted edges. That
+// renders as cotton wool no matter how good the lighting is, because real
+// cumulus are two things at once: a few large connected masses, and lobes that
+// pinch and bulge (convex where the updraft is, concave in the seams).
+//
+// Three causes, all in the generator:
+//   * PerlinFbm(baseFreq 4, 6 octaves) puts most visible energy in the middle
+//     octaves, so the largest octave - the one that is supposed to BE the
+//     cloud mass - never dominates. Fewer octaves, lower base frequency.
+//   * No billow. The fold billow(n) = 1 - abs(2n - 1) is what turns a smooth
+//     Gaussian-ish field into ridged, pinched, cauliflower lobes. Plain FBM
+//     cannot produce it at any octave count.
+//   * The Worley cell edges (the other half of the cauliflower) were diluted
+//     away by the tie-break mix and then stretched by the CDF, leaving
+//     something that was basically Perlin noise.
+//
+// So: billowed Perlin for the mass, billowed Worley for the lobes, a real
+// Schneider dilation that keeps the creases, plus a domain warp inside the
+// bake to break the isotropy of the blobs.
 //
 // Channel layout, 2D shape map:
 //   R  weather: large-scale coverage (5 octaves)  - decides WHERE clouds live
@@ -74,31 +98,34 @@ namespace CartoonRendering.EditorTools
             {
                 float u = x / (float)N, v = y / (float)N, w = z / (float)N;
 
-                // 6 octaves from base freq 4: enough scale variety that cloud
-                // masses stop reading as same-size round blobs.
-                float per = PerlinFbm(u, v, w, 4, 6);
-                float w1  = WorleyFbm(u, v, w, 4);
-                float w2  = WorleyFbm(u, v, w, 8);
-                float w3  = WorleyFbm(u, v, w, 16);
+                // 域扭曲（在烘焙里做一次，不在着色器里）：让采样点本身先被
+                // 推一把。没有它，各向同性的 FBM 出来的 blob 全是"圆"的，
+                // 云的褶皱是拉长的、被剪切过的。
+                float wx1 = Perlin3(u * 3f, v * 3f, w * 3f, 3) - 0.5f;
+                float wy1 = Perlin3(u * 3f + 7.3f, v * 3f, w * 3f, 3) - 0.5f;
+                float wz1 = Perlin3(u * 3f, v * 3f + 3.1f, w * 3f, 3) - 0.5f;
+                float ku = u + wx1 * 0.16f, kv = v + wy1 * 0.16f, kw = w + wz1 * 0.16f;
 
-                // Schneider-style Perlin-Worley: dilate the Perlin masses by
-                // the low-frequency Worley so they grow puffy cauliflower
-                // lobes. Kept as the SHAPE source - its bias is exactly what
-                // the CDF pass below removes.
-                float pw = Clamp01((per - (1f - w1)) / Mathf.Max(w1, 1e-3f));
+                // 质量场要【平滑】：只负责"哪里有云团、云团多大"。
+                // 上一版在这里也做了 billow，结果质量场变成双峰的脊场 ——
+                // 一过阈值就只剩细丝，云变成一缕一缕的雾纱，不鼓。
+                // billow 该给的是褶皱场（下面那个 Worley），不是质量场。
+                float per = PerlinFbm(ku, kv, kw, 2, 3);
+                // 褶皱场：billowed Worley。Schneider 膨胀用它撑开 Perlin，
+                // 胞边界的锐利折痕就是从这儿来的 —— 菜花的鼓包与收腰。
+                float wor = BillowWorley(ku, kv, kw, 3, 2);
 
-                // Schneider 那个除法在 w1 < 0.5 且 per < 1-w1 的地方会整片塌成
-                // 0 —— 实测旧资产里约一半体素都是精确的 0。CDF 归一化救不了
-                // "并列"：一半样本挤在同一个值上，归一化后仍然是一整块常数
-                // （coverage 滑到那块的值时，天空会从 0% 直接跳到 50%）。
-                // 所以先把 per 本身按小比例混回去，给死区留下排序信息，
-                // 云团的连通结构不受影响。
-                pw = Clamp01(pw * 0.88f + per * 0.12f);
+                // Schneider 膨胀：用 Worley 把 Perlin 撑开成菜花状团块。
+                float pw = Clamp01((per - (1f - wor)) / Mathf.Max(wor, 0.12f));
+                // 死区兜底（这个除法在 wor 小的地方会整片塌成 0，CDF 救不了
+                // 并列）。混回来的也是 billow 场，所以死区里仍有褶皱结构，
+                // 不像旧版那样把菜花抹成平的原值。
+                pw = Clamp01(pw * 0.85f + per * 0.15f);
 
                 raw[i, 0] = pw;
-                raw[i, 1] = w1;
-                raw[i, 2] = w2;
-                raw[i, 3] = w3;
+                raw[i, 1] = BillowWorley(u, v, w, 10, 2);   // 边缘侵蚀用的叶瓣
+                raw[i, 2] = BillowWorley(u, v, w, 20, 2);   // 2x 更细
+                raw[i, 3] = PerlinFbm(u, v, w, 40, 2);      // 高频絮边
             }
 
             NormaliseChannels(raw, N * N * N, new[] { true, true, true, true });
@@ -122,10 +149,11 @@ namespace CartoonRendering.EditorTools
 
                 // Large-scale weather: where do cloud systems live. Few
                 // octaves and a low base frequency so it produces big
-                // connected regions with real gaps, not salt.
-                raw[i, 0] = PerlinFbm2(u, v, 3, 5);
+                // connected regions with real gaps, not salt. Billowed so the
+                // banks have convoluted edges instead of round gradients.
+                raw[i, 0] = BillowPerlin2(u, v, 3, 3);
                 // Mid-scale: breaks those regions into individual clouds.
-                raw[i, 1] = PerlinFbm2(u, v, 9, 7);
+                raw[i, 1] = BillowPerlin2(u, v, 9, 4);
 
                 // Domain warp: the 2D offset applied to the 3D sample
                 // position. Built from the same family of noise, centred on
@@ -357,6 +385,43 @@ namespace CartoonRendering.EditorTools
             return Mathf.Clamp01(1f - Mathf.Sqrt(minD));
         }
 
+        // ----- Billow -------------------------------------------------------
+        // billow(n) = 1 - |2n - 1| 把平滑场折成"脊"：凸的地方更凸、凹的地方
+        // 收成缝。云的可读性几乎全在这一步 —— 普通 FBM 无论堆多少倍频都只是
+        // 高斯状的软球，永远长不出菜花状的鼓包与收腰。
+
+        private static float Billow(float n) { return 1f - Mathf.Abs(2f * n - 1f); }
+
+        private static float BillowPerlin(float u, float v, float w, int baseFreq, int octaves)
+        {
+            float sum = 0f, amp = 0.6f, norm = 0f;
+            int freq = baseFreq;
+            for (int o = 0; o < octaves; o++)
+            {
+                // 每一档先 billow 再累加（而不是把和再 billow），否则高频的
+                // 折叠会被后面几档抹平。
+                sum += amp * Billow(Perlin3(u * freq, v * freq, w * freq, freq));
+                norm += amp;
+                amp *= 0.5f;
+                freq *= 2;
+            }
+            return sum / norm;
+        }
+
+        private static float BillowWorley(float u, float v, float w, int baseFreq, int octaves)
+        {
+            float sum = 0f, amp = 0.6f, norm = 0f;
+            int freq = baseFreq;
+            for (int o = 0; o < octaves; o++)
+            {
+                sum += amp * Billow(Worley3(u * freq, v * freq, w * freq, freq));
+                norm += amp;
+                amp *= 0.5f;
+                freq *= 2;
+            }
+            return sum / norm;
+        }
+
         private static float WorleyFbm(float u, float v, float w, int baseFreq)
         {
             float sum = 0f, amp = 0.55f, norm = 0f;
@@ -410,6 +475,20 @@ namespace CartoonRendering.EditorTools
             float n11 = g11.x * (xf - 1f)  + g11.y * (yf - 1f);
             return Mathf.Clamp01(Mathf.Lerp(Mathf.Lerp(n00, n10, u),
                                             Mathf.Lerp(n01, n11, u), v) * 0.9f + 0.5f);
+        }
+
+        private static float BillowPerlin2(float u, float v, int baseFreq, int octaves)
+        {
+            float sum = 0f, amp = 0.6f, norm = 0f;
+            int freq = baseFreq;
+            for (int o = 0; o < octaves; o++)
+            {
+                sum += amp * Billow(Perlin2(u * freq, v * freq, freq, o + 1));
+                norm += amp;
+                amp *= 0.5f;
+                freq *= 2;
+            }
+            return sum / norm;
         }
 
         private static float PerlinFbm2(float u, float v, int baseFreq, int octaves)

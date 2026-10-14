@@ -127,6 +127,22 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             // z = 天气对覆盖度的调制幅度，w = 中尺度混入比例
             float4 _CloudWeatherParams;
 
+            // 散射（相位函数 + 多重散射）。之前整个光照模型没有任何角度依赖，
+            // 这是"云看着假"的头号原因：真实的云朝太阳方向会明显发亮。
+            //   x = 前叶各向异性 g（0.5~0.85）
+            //   y = 后叶各向异性 g（负值，-0.2~-0.5）
+            //   z = 前叶权重 [0,1]
+            //   w = 多重散射倍频数（1~4，1 = 退化成单次散射）
+            float4 _CloudScatterParams;
+
+            // 云型剖面（Nubis 的 dimensional profile）。天气不再只决定"有多少云"，
+            // 还决定"这是层云还是积云"。
+            //   x = 天气→云型的对比度
+            //   y = 云型偏置（0.5 = 中性）
+            //   z = 低空额外覆盖度增益（远处云形怪异的补救，见注释）
+            //   w = 大气透视强度
+            float4 _CloudProfileParams;
+
             // Temporal accumulation: previous frame's half-res cloud output
             // plus the VP matrix that rendered it and the blend weight.
             TEXTURE2D(_CloudHistoryTex); SAMPLER(sampler_CloudHistoryTex);
@@ -208,11 +224,18 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
 
             // Ambient cloud light at a normalised height inside the slab:
             // horizon influence at the bottom, zenith at the top.
+            //
+            // 还要再乘一个"越靠底越暗"的系数。原来只用 horizon↔zenith 插值，
+            // 而地平线色本身很亮（那是天空最亮的一条），于是云底被照得跟云顶
+            // 差不多 —— 积云最标志性的外观就是【亮顶 + 暗平底】，缺了它云就
+            // 只是一团发白的棉花。物理上也好解释：云底朝下，看到的天空立体角
+            // 小、又被自身遮住，入射的漫射光本来就少。
             float3 AmbientAtHeight(float h01)
             {
                 float3 top     = BlendPalette(_AmbNightTop.rgb,     _AmbSunsetTop.rgb,     _AmbDayTop.rgb);
                 float3 horizon = BlendPalette(_AmbNightHorizon.rgb, _AmbSunsetHorizon.rgb, _AmbDayHorizon.rgb);
-                return lerp(horizon, top, saturate(h01 * 0.7 + 0.15)) * _CloudTint.rgb;
+                float3 sky = lerp(horizon, top, saturate(h01 * 0.7 + 0.15));
+                return sky * _CloudTint.rgb * lerp(0.30, 1.0, sqrt(saturate(h01)));
             }
 
             // Sun colour tinted warm near the horizon (mirrors the skybox).
@@ -223,6 +246,60 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 float3 c = lerp(_CartoonSunColor.rgb, warmCol * _CartoonSunColor.a, warm);
                 // Kill the direct sun term once the sun is below the horizon.
                 return c * smoothstep(-0.06, 0.10, GetSunElevation());
+            }
+
+            // ----------------------------------------------------------------
+            // 散射相位：双叶 Henyey-Greenstein
+            // ----------------------------------------------------------------
+            // 前叶管"朝太阳看过去云有多亮"（透射过去的光 + 前向散射），
+            // 后叶管背光侧的整体形状。取 90 度方向的值做归一化，让相位变成一个
+            // "以 1 为中心的角度调制"而不是绝对量纲 —— 本包的太阳色是风格化的，
+            // 直接套物理单位会把亮度整体压低数倍， cel 分层也就没了。
+            float HGSingle(float cosT, float g)
+            {
+                float g2 = g * g;
+                return (1.0 - g2) / (4.0 * PI * pow(max(1e-6, 1.0 + g2 - 2.0 * g * cosT), 1.5));
+            }
+
+            float CloudPhaseRaw(float cosT, float atten)
+            {
+                float gF = _CloudScatterParams.x * atten;
+                float gB = _CloudScatterParams.y * atten;
+                float wF = _CloudScatterParams.z;
+                return lerp(HGSingle(cosT, gB), HGSingle(cosT, gF), wF);
+            }
+
+            float CloudPhase(float cosT)
+            {
+                return CloudPhaseRaw(cosT, 1.0) / max(CloudPhaseRaw(0.0, 1.0), 1e-6);
+            }
+
+            // ----------------------------------------------------------------
+            // 多重散射近似（Wrenninge 的倍频衰减，Oz / three-geospatial 同一路线）
+            // ----------------------------------------------------------------
+            // 单次散射 Beer-Lambert 会把云内部烧成死灰：真实云里光子来回散射，
+            // 厚处仍然透光、还会发亮。这里把光学深度按一串逐倍衰减的指数项求和，
+            // 每重同时把相位各向异性也衰减（越多次散射越各向同性）。
+            // 权重 0.5^i 求和 ≈ 1，所以亮度量级与单次散射可比，不会整体翻台。
+            float CloudMultiScatter(float opticalDepth, float cosT)
+            {
+                int octaves = (int)clamp(_CloudScatterParams.w, 1.0, 4.0);
+                float acc = 0.0;
+                float norm = 0.0;              // 零光学深度时的和，用来归一化
+                float a = 1.0, b = 1.0, c = 1.0;
+                [loop] for (int i = 0; i < 4; i++)
+                {
+                    if (i >= octaves) break;
+                    acc  += a * exp(-opticalDepth * b) * CloudPhaseRaw(cosT, c);
+                    norm += a * CloudPhaseRaw(cosT, c);
+                    a *= 0.5; b *= 0.5; c *= 0.5;
+                }
+                // 必须除以"零深度"的和：不然倍频数一多，整片天都跟着变亮
+                // （实测 3 倍频时云底被抬到单次散射的 5 倍，亮顶/暗底的对比
+                //  直接没了 —— 积云最像立体的线索就是那一面暗底）。
+                // 除掉之后语义就干净了：1 = 完全透明处，随深度衰减但比
+                // 单次散射慢，正是"多次散射把云内部填亮"该有的形状。
+                return acc / max(norm, 1e-6);
             }
 
             // ----------------------------------------------------------------
@@ -307,22 +384,36 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 // organic. n2 wobbles the base field for richer contours.
                 // 覆盖度不再是全屏一个常数：天气图在局部把它上下推。
                 // 均值仍等于美术调的那个值，所以滑块的语义没变。
-                float coverage = saturate(_CloudShapeParams.x
-                                        + (weather - 0.5) * _CloudWeatherParams.z);
+                float coverage = _CloudShapeParams.x + (weather - 0.5) * _CloudWeatherParams.z;
+
+                // 低空补覆盖：云底附近多给一点密度。 tiled 3D 噪声在低仰角长射线上
+                // 会啃出形状古怪的云（远处尤其明显），把云底垫实能压住这个毛病。
+                coverage += (1.0 - h01) * _CloudProfileParams.z;
+                coverage = saturate(coverage);
 
                 // Detail erosion from the Worley channels (both scales),
                 // applied to the RAW field BEFORE the threshold smoothstep.
                 // Eroding after the threshold carved near-discontinuous
                 // cliffs that the march aliased into comb-stripe banding.
                 float detail = n.g * 0.5 + n.b * 0.3 + n.a * 0.12 + n2.g * 0.08;
-                float edgeWeight = smoothstep(0.75, 0.35, n.r); // erode where the field is thin
-                // Erosion and fine wobble are high-frequency by nature -
-                // fade them out with LOD so distant clouds keep a clean
-                // silhouette instead of aliased, eroded speckle.
-                float hfFade = saturate(1.0 - lod * 0.2);
-                float r = saturate(n.r + (n2.r - 0.5) * 0.18 * hfFade)
-                        - detail * _CloudMarchParams.w * 0.6
-                              * edgeWeight * (0.4 + 0.6 * h01) * hfFade;
+                // 高频细节随 LOD 淡出，但要有下限：全淡掉之后远处云一个碎口都不剩，
+                // 于是完全没有尺度参照物（"小特征衬托大特征"正是云看起来有体积、
+                // 有距离的关键）。留 35% 就是让远处仍有轮廓，只是不糊成盐粒。
+                float hfFade = lerp(0.35, 1.0, saturate(1.0 - lod * 0.2));
+                float r = saturate(n.r + (n2.r - 0.5) * 0.18 * hfFade);
+
+                // 细节侵蚀用 Nubis 的 Remap 形式，而不是直接做减法：
+                //     Remap(Base, Detail, 1, 0, 1) = (Base - Detail) / (1 - Detail)
+                // 差别在于：减法会把云内部一起拖暗（厚云发灰），而 Remap 保证
+                // Base=1 仍是 1 —— 内部实心不动，只啃边缘，碎口才利落。
+                // 而且它单调，所以 CDF 归一化换来的"coverage = 字面占比"不被破坏。
+                // 侵蚀量要乘 0.45 重新标定：Remap 的 (r-e)/(1-e) 比原来的直接减法
+                // 狠得多（e=0.7 时等于把所有 r<0.7 的体素全清掉），照搬旧系数会把
+                // 厚云整片掏空。再乘一个"只啃边缘"的权重，实心内部不动。
+                float edgeKeep = 1.0 - saturate(r * 1.6);
+                float e = min(detail * _CloudMarchParams.w * 0.45
+                            * (0.4 + 0.6 * h01) * hfFade * (0.35 + 0.65 * edgeKeep), 0.85);
+                r = saturate((r - e) / max(1.0 - e, 1e-3));
 
                 // 取 mip 的那一档会把场往均值 0.5 拉：阈值固定时，远处的云
                 // 会因为"被抹平了所以过不了阈值"而整片消失（这正是之前
@@ -335,7 +426,7 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
 
                 // 阈值带也跟着放宽：远处体素本来就分辨不出边界，
                 // 硬阈值会把残余噪声读成一圈锯齿边。
-                float soft = 0.14 + lod * 0.045;
+                float soft = 0.11 + lod * 0.04;
                 float d = smoothstep(1.0 - coverage, 1.0 - coverage + soft, r);
                 outR = r;
 
@@ -348,15 +439,21 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 // survive unchanged up close.
                 // 积云要"平底圆顶"：底部剖面收得陡，才有那块平的底座；
                 // 0.22 会把底也摊圆，云就成了一团没性格的棉花。
-                float pad   = stepFrac * 2.0;
-                float rampB = max(0.12, pad);
-                float rampT = max(0.20, pad);
-                // 天气弱的地方只留一层摊平的薄云（顶部提前收），天气强的
-                // 地方才允许云向上长厚 —— 否则无论天气图怎么变，云的竖向
-                // 形状都一样，就白叠了。
-                float topW = max(lerp(rampT * 2.6, rampT, weather), pad);
-                float hg = smoothstep(0.0, rampB, h01)
-                         * (1.0 - smoothstep(1.0 - topW, 1.0, h01));
+                // 竖向剖面：Nubis 的 dimensional profile = bottom * top。
+                // 天气在这里决定的是【云型】而不只是【云量】——
+                // 层云摊成薄薄一层（底部慢起、顶部早收），积云底座平、向上长满。
+                // 之前剖面形状与天气无关，所以无论怎么调天气，云都是同一种团块。
+                float pad = stepFrac * 2.0;
+                float type = saturate((weather - 0.5) * _CloudProfileParams.x
+                                    + _CloudProfileParams.y);
+                // 两种云都有平底（云底是凝结面，本来就平），所以 botW 一律窄；
+                // 天气真正改变的是【向上能长多厚】= topW。
+                // （上一版把层云的 botW 给到 0.5，等于把这一层的密度从中间抹掉，
+                //  云立刻变成稀薄絮状 —— 那是 bug，不是层云该有的样子。）
+                float botW = max(lerp(0.16, 0.08, type), pad);
+                float topW = max(lerp(0.42, 0.88, type), pad);
+                float hg = smoothstep(0.0, botW, h01)
+                         * (1.0 - smoothstep(topW, 1.0, h01));
 
                 outHg = hg;
                 return d * hg;
@@ -501,6 +598,7 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 // March front-to-back with early-out.
                 float3 col = 0.0;
                 float  T   = 1.0;
+                float  dSum = 0.0, wSum = 0.0;   // 透射率加权的代表深度
                 [loop] for (int s = 0; s < 48; s++)
                 {
                     if (s >= marchSteps) break;
@@ -517,36 +615,56 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                     float  dn  = CloudDensity(p, h01, windOffset, camPos.xz, lod, stepLen / thickness);
                     if (dn <= 0.003) continue;
 
-                    // Beer towards the sun + Powder edge term. Lighting stays
-                    // SMOOTH per slice - quantising here banded every slice
-                    // into stripes. Cel banding is applied once after the
-                    // march instead (see below).
-                    float lt     = LightTransmittance(p, toSun, baseY, thickness, windOffset, camPos.xz, lod);
-                    float powder = 1.0 - exp(-dn * stepLen * sigma * 2.0);
-                    float lightE = lt * lerp(0.6, 1.0, powder);
+                    // 消光系数（1/m）。dn 是无量纲密度，sigma 是标定后的比例。
+                    float ext = max(dn * sigma, 1e-6);
 
-                    // Ambient is attenuated by the sun-ward transmittance:
-                    // deep inside the cloud the sky light is occluded too,
-                    // so cores go grey while rims stay bright.
-                    float3 S = AmbientAtHeight(h01) * (0.35 + 0.65 * lt)
-                             + sunCol * lightE;
+                    // 光学深度：LightTransmittance 返回的就是 exp(-od)，取 -log 还原。
+                    float lt = LightTransmittance(p, toSun, baseY, thickness, windOffset, camPos.xz, lod);
+                    float odSun = -log(max(lt, 1e-6));
 
-                    // Silver lining - back-lit golden edge towards the sun.
-                    // 银边必须按"这个体素到底有多少云"门控：薄边缘上 lt≈1、
-                    // 又正好是背光方向，不门控就会在轮廓外沿撒一圈白色盐粒
-                    // （时间累积收敛之后依然存在，不是抖动，是真实的错）。
+                    // 太阳项 = 相位 × 多重散射。这一步取代了原来"Beer × Powder"
+                    // 那个没有任何角度依赖的乘子 —— 云朝太阳该亮、背朝太阳该暗，
+                    // 之前只会均匀地灰。
+                    float mu = dot(viewDir, toSun);
+                    float ms = CloudMultiScatter(odSun, mu);
+                    float3 sunTerm = sunCol * ms;
+
+                    // Powder：云缘那一圈"透过去"的亮边，保留（它是风格化里最有用
+                    // 的一项），但改成按散射光学深度算，而不是随手乘个 2.0。
+                    float powder = 1.0 - exp(-dn * stepLen * sigma * 1.5);
+                    sunTerm *= lerp(0.55, 1.0, powder);
+
+                    // 银边：现在有了真正的相位函数，银边退化成"额外的一层暖色高光"，
+                    // 仍然按体素密度门控（薄边缘拿满强度会在轮廓外撒白点）。
                     float silver = pow(viewSun, _CloudShadeParams.w)
                                  * _CloudShadeParams.z * lt
                                  * saturate(dn * 6.0);
-                    S += sunCol * silver;
+                    sunTerm += sunCol * silver;
 
-                    // Square the density for a soft extinction onset: thin
-                    // edge regions accumulate gradually (fewer bands, less
-                    // dither contrast), dense cores still saturate via the
-                    // compensating 2.2x factor.
-                    float a = 1.0 - exp(-dn * dn * stepLen * sigma * 2.2);
-                    col += T * S * a;
-                    T   *= (1.0 - a);
+                    // 环境项：云内部同样遮住了天空光，所以芯子发灰、边缘亮。
+                    float3 ambTerm = AmbientAtHeight(h01) * (0.35 + 0.65 * lt);
+
+                    float3 L = sunTerm + ambTerm;
+
+                    // 均匀薄片的解析积分（Frostbite §5.6.3）：
+                    //     contribution = (j / sigma_t) * (1 - exp(-sigma_t*ds))
+                    // 其中 j 是"单位长度的发射率"。而这里的 L 已经是入射辐射
+                    // （j = sigma_s * L），代进去 sigma 正好约掉：
+                    //     contribution = L * (1 - exp(-sigma_t*ds))
+                    // 再除一次 ext 等于把 1/sigma 重复计入，曝光会被放大 ~1/sigma
+                    // （这里约 20 倍），cel 量化直接饱和成一片死白。
+                    //
+                    // 与旧写法真正的区别不在这里，而在 extinction 的算法：旧代码
+                    // 颜色用 dn^2*sigma*2.2、alpha 用同一项，等于随手凑系数；
+                    // 现在颜色与透过率共用同一个 sigma_t*ds，步数变化不再改变亮度。
+                    float Tstep = exp(-ext * stepLen);
+                    col += T * L * (1.0 - Tstep);
+                    T   *= Tstep;
+
+                    // 记录透射率加权的代表深度，最后拿去做大气透视。
+                    dSum += T * t;
+                    wSum += T;
+
                     if (T < 0.02) break;
                 }
 
@@ -578,6 +696,21 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                     else if (_CloudDebug < 5.5) dbg = saturate(clamp(max(lodStep, 0.0), 0.0, 7.0) / 7.0); // mip
                     else                        dbg = saturate(weatherAt);              // 天气场
                     return half4(dbg, 1.0);
+                }
+
+                // 大气透视：把"云"这个介质也送进同一套距离雾里，而不是只把 alpha
+                // 淡出。只淡 alpha 的结果是远处云变成一块悬在天空里的半透明白斑，
+                // 看着就是贴上去的；正确做法是消光 + 内散射（Frostbite §5.9.1）。
+                float frontDepth = wSum > 1e-5 ? dSum / wSum : tStart;
+                float ap = saturate((frontDepth - baseY * 4.0) / (baseY * 12.0))
+                         * saturate(_CloudProfileParams.w);
+                if (ap > 0.0)
+                {
+                    // 内散射色取天空自己的地平线色 —— 云被"染进"天空，
+                    // 与背景自然衔接，不需要额外调参。
+                    float3 haze = BlendPalette(_AmbNightHorizon.rgb, _AmbSunsetHorizon.rgb,
+                                               _AmbDayHorizon.rgb);
+                    col = col * (1.0 - ap) + haze * (1.0 - T) * ap;
                 }
 
                 float coverageA = 1.0 - T;

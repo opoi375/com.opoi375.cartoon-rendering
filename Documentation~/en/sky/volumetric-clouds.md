@@ -27,6 +27,28 @@ The bake now ends with a CDF (histogram) remap onto a uniform distribution per c
 
 Normalisation cannot fix *ties*: when half the samples share one value they stay one constant block after the remap, and sliding coverage past that value jumps the sky from 0% to 50% cloud. That is why `perlin` is mixed back into `pw` at 12% first - it leaves ordering information in the dead zone.
 
+## What the noise itself looks like (the v1.7.0 lesson)
+
+When clouds do not look like clouds, the first move is not lighting - it is **dumping the noise to an image and looking at it**. The shipped volume's shape channel used to be a field of **soft blobs all at one scale**: no large connected masses, no pinched cauliflower lobes. No lighting model can rescue that.
+
+Three generator-side mistakes:
+
+1. **Too many octaves, base frequency too high.** `PerlinFbm(baseFreq 4, 6 octaves)` spread the energy into the mid and high octaves, so the octave that is supposed to *be* the cloud mass never dominated. Base frequency 2 with 3 octaves restored the large-scale connectivity
+2. **No billow.** `billow(n) = 1 - abs(2n - 1)` folds a smooth field into ridges: bulges get more convex, seams pinch shut. That fold is where bulge-and-pinch comes from; plain FBM stays a Gaussian soft ball at any octave count
+3. The sharp **Worley cell boundaries were diluted away** (first by the tie-break mix, then stretched flat by the CDF), leaving effectively just Perlin
+
+But billow belongs on the **crease field**, never on the **mass field**: billowing the mass turns it into a bimodal ridge field, and past the threshold only filaments survive, so clouds become wisps of gauze. The Nubis division of labour is:
+
+| Field | Should look like | Owns |
+| --- | --- | --- |
+| Mass (Perlin, low freq, smooth) | Large, connected, soft-edged banks | Where clouds live and how big they are |
+| Crease (Worley, billowed) | Sharp cell boundaries plus folded ridges | The cauliflower bulge and pinch |
+| Detail (Worley, high freq) | Fine bite | Cauliflower erosion on the rim |
+
+The bake also warps the sample coordinates once, because isotropic FBM yields round blobs while real cloud folds are sheared and stretched.
+
+The test is simple: export the R channel as an image. If every visible feature is the same size, the noise is wrong - you should see small creases inside large banks, and fine bite inside those.
+
 ## Sampling must be world-anchored
 
 The weather map originally re-centred on the camera like the 3D shape did, which pins the sample window at uv≈0 - the sky above you always reads the same corner of the map, so the weather term degenerates into a constant. That was diagnosed by the `Weather` debug view showing one flat grey value.
@@ -46,6 +68,11 @@ Both maps now use absolute world coordinates with `frac()` (identical under Repe
 | **Warp** | Domain warp strength in noise tiles |
 | Base Height / Thickness | Slab. Keep the thickness modest if you want islands |
 | Scale | 3D shape scale. 0.00065 → 1.5 km tile, ~400 m clouds |
+| **G Forward / Backward / Phase Forward** | Dual-lobe HG phase: clouds flare towards the sun and the dark side takes shape |
+| **Scatter Octaves** | Multiple-scattering octaves. 1 = single scattering only, which burns cores to flat grey |
+| **Type Contrast / Bias** | Weather selects cloud TYPE (stratus <-> cumulus), not just amount |
+| **Base Coverage Boost** | Extra coverage at the cloud base, suppressing odd distant shapes at low elevation |
+| **Aerial Perspective** | Distant cloud is extincted and re-tinted towards the sky instead of only fading alpha |
 | Density | Overall extinction |
 | Detail | High-frequency erosion strength |
 | March Steps / Light Steps | 8~48 / 2~8 |
