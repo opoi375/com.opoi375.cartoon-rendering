@@ -114,6 +114,19 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             // Noise 3D) for the distance-adaptive LOD below to work.
             TEXTURE3D(_CloudNoiseTex); SAMPLER(sampler_CloudNoiseTex);
 
+            // 2D 天气 / 扭曲图（CloudNoiseTextureBaker.BakeShapeMaps 烘焙，
+            // 同样做过 CDF 归一化）：
+            //   R = 大尺度天气（云系住在哪一片）
+            //   G = 中尺度（把云系拆成一朵朵）
+            //   BA = 域扭曲 xy（让轮廓不再是圆滚滚的）
+            // 没有它的时候，整片天空的覆盖度是同一个常数，噪声又是各态历经的，
+            // 于是云只会均匀地铺满天 —— 看着像磨砂玻璃，不像天气。
+            TEXTURE2D(_CloudShape2D); SAMPLER(sampler_CloudShape2D);
+
+            // x = 天气图世界尺度（每米对应多少个图块），y = 域扭曲强度（图块单位），
+            // z = 天气对覆盖度的调制幅度，w = 中尺度混入比例
+            float4 _CloudWeatherParams;
+
             // Temporal accumulation: previous frame's half-res cloud output
             // plus the VP matrix that rendered it and the blend weight.
             TEXTURE2D(_CloudHistoryTex); SAMPLER(sampler_CloudHistoryTex);
@@ -124,6 +137,10 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             // not the offscreen history RT this pass renders into, so NDC
             // reconstruction must use the real target dimensions.
             float4   _CloudRTSize;
+
+            // 调试视图：0=关 1=覆盖度 2=步进区间 3=原始噪声 4=高度剖面 5=mip
+            // （整屏黑到底是"没密度"还是"有密度但被裁掉/看不见"，只能靠它区分）
+            float    _CloudDebug;
 
             // ----------------------------------------------------------------
             // Full-screen triangle
@@ -232,23 +249,50 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             //   stepFrac: march step length as a slab fraction - used to
             //   widen the analytic height ramps so they stay continuously
             //   sampled when steps get coarse at distance.
-            float CloudDensity(float3 p, float h01, float2 windOffset, float2 camXZ, float lod, float stepFrac)
+            /// 天气层：返回 [0,1] 的局部天气强度，并带出域扭曲偏移。
+            ///
+            /// 用【绝对世界坐标】，不像 3D 形状那样以相机为原点重新居中：
+            /// 重新居中的话采样窗口永远钉在 uv=0 附近，头顶这片天看到的
+            /// 永远是图块同一个角落 —— 天气调制会直接退化成常数（实测就是
+            /// 这个症状：Weather 调试视图整屏一个灰度）。飞到哪里是什么天气，
+            /// 才是天气图存在的意义。
+            /// frac 只为了把数值压回 float 精度舒服的范围，Repeat 环绕下
+            /// 结果完全等价。风也要吹它（乘 0.35：天气比云团移动得慢）。
+            /// 调试视图也要看它，所以单独成函数，不让两处实现漂移。
+            float CloudWeather(float3 p, float2 windOffset, float2 camXZ, float lod, out float2 warp)
             {
-                // Sample the tileable Perlin-Worley volume. The pattern is
-                // RE-CENTRED on the camera horizontally so clouds always
-                // surround the viewer no matter how far they travel, while
-                // the slab height stays absolute so the layer never swims
-                // when the camera moves or rotates. Repeat wrap means no
-                // float32 precision collapse either.
+                float wScale = _CloudWeatherParams.x;
+                float2 wuv = frac(p.xz * wScale) + windOffset * 0.35;
+                // 天气是低频场，比形状图晚两级退出细节即可
+                float4 wx = SAMPLE_TEXTURE2D_LOD(_CloudShape2D, sampler_CloudShape2D,
+                                                 wuv, clamp(lod - 1.0, 0.0, 7.0));
+                // 域扭曲：把 3D 采样坐标按天气图推一把，云缘就卷起来而不是圆滚滚
+                warp = (wx.ba - 0.5) * _CloudWeatherParams.y;
+                return lerp(wx.r, wx.g, _CloudWeatherParams.w);
+            }
+
+            // 同上，另外把"阈值后的噪声场值 r"与"高度剖面 hg"带出来给调试视图用。
+            float CloudDensity(float3 p, float h01, float2 windOffset, float2 camXZ, float lod, float stepFrac,
+                               out float outR, out float outHg)
+            {
+                // Tileable Perlin-Worley volume, sampled in ABSOLUTE world
+                // coordinates (see CloudWeather for why the old
+                // camera-centred version is wrong). frac keeps the UV in a
+                // float-friendly range; Repeat wrap makes it equivalent.
                 // ISOTROPIC world-scale sampling: the Y axis uses the same
                 // metres-per-tile as XZ, so noise cells are ROUND blobs
                 // instead of vertically squashed pancakes (mapping the slab
                 // onto the full 0..1 tile made cells ~4x flatter than wide).
                 float scale = _CloudShapeParams.w;
                 float slabBaseY = _CloudShapeParams.y;
-                float3 uvw = float3((p.x - camXZ.x) * scale + windOffset.x,
+
+                // ---- 天气层（2D）：先决定"这一片天归不归云管" ----
+                float2 warp;
+                float weather = CloudWeather(p, windOffset, camXZ, lod, warp);
+
+                float3 uvw = float3(frac(p.x * scale) + windOffset.x + warp.x,
                                     (p.y - slabBaseY) * scale,
-                                    (p.z - camXZ.y) * scale + windOffset.y);
+                                    frac(p.z * scale) + windOffset.y + warp.y);
                 float4 n = SAMPLE_TEXTURE3D_LOD(_CloudNoiseTex, sampler_CloudNoiseTex, uvw, lod);
 
                 // Second sample at ~3x scale, offset half a tile: adds
@@ -261,7 +305,10 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
 
                 // Coverage remap with a SOFT threshold so silhouettes stay
                 // organic. n2 wobbles the base field for richer contours.
-                float coverage = saturate(_CloudShapeParams.x);
+                // 覆盖度不再是全屏一个常数：天气图在局部把它上下推。
+                // 均值仍等于美术调的那个值，所以滑块的语义没变。
+                float coverage = saturate(_CloudShapeParams.x
+                                        + (weather - 0.5) * _CloudWeatherParams.z);
 
                 // Detail erosion from the Worley channels (both scales),
                 // applied to the RAW field BEFORE the threshold smoothstep.
@@ -277,7 +324,20 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                         - detail * _CloudMarchParams.w * 0.6
                               * edgeWeight * (0.4 + 0.6 * h01) * hfFade;
 
-                float d = smoothstep(1.0 - coverage, 1.0 - coverage + 0.2, r);
+                // 取 mip 的那一档会把场往均值 0.5 拉：阈值固定时，远处的云
+                // 会因为"被抹平了所以过不了阈值"而整片消失（这正是之前
+                // 天空空掉的原因之一）。按 lod 把偏离量放大回去，让任意
+                // 距离上通过阈值的体素比例大致不变。
+                // 补偿要有上限：不封顶的话 lod 6 会把一个已经糊掉的场放大 3 倍，
+                // 地平线附近（一步跨几百米）直接碎成盐粒。到 lod 4 就收手。
+                float boost = lerp(1.0, 1.8, saturate(lod * 0.25));
+                r = 0.5 + (r - 0.5) * boost;
+
+                // 阈值带也跟着放宽：远处体素本来就分辨不出边界，
+                // 硬阈值会把残余噪声读成一圈锯齿边。
+                float soft = 0.14 + lod * 0.045;
+                float d = smoothstep(1.0 - coverage, 1.0 - coverage + soft, r);
+                outR = r;
 
                 // Height profile: gentle ramp-in over the bottom of the
                 // slab, wispy top fade. Both ramps WIDEN when a march step
@@ -286,13 +346,28 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 // horizontal terracing seen on distant cloud undersides.
                 // Near steps are tiny, so the authored 0.22/0.20 ramps
                 // survive unchanged up close.
+                // 积云要"平底圆顶"：底部剖面收得陡，才有那块平的底座；
+                // 0.22 会把底也摊圆，云就成了一团没性格的棉花。
                 float pad   = stepFrac * 2.0;
-                float rampB = max(0.22, pad);
+                float rampB = max(0.12, pad);
                 float rampT = max(0.20, pad);
+                // 天气弱的地方只留一层摊平的薄云（顶部提前收），天气强的
+                // 地方才允许云向上长厚 —— 否则无论天气图怎么变，云的竖向
+                // 形状都一样，就白叠了。
+                float topW = max(lerp(rampT * 2.6, rampT, weather), pad);
                 float hg = smoothstep(0.0, rampB, h01)
-                         * (1.0 - smoothstep(1.0 - rampT, 1.0, h01));
+                         * (1.0 - smoothstep(1.0 - topW, 1.0, h01));
 
+                outHg = hg;
                 return d * hg;
+            }
+
+            // 6 参数版：调试视图不需要中间量，HLSL 没有前置声明，
+            // 所以这个包装必须排在带 out 参数的定义之后。
+                        float CloudDensity(float3 p, float h01, float2 windOffset, float2 camXZ, float lod, float stepFrac)
+            {
+                float rOut, hgOut;
+                return CloudDensity(p, h01, windOffset, camXZ, lod, stepFrac, rOut, hgOut);
             }
 
             // ----------------------------------------------------------------
@@ -334,8 +409,13 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 // billboard clouds in the skybox own that band). abs() so the
                 // same holds when the camera is ABOVE the slab looking down.
                 float upness = abs(viewDir.y);
-                float horizonFade = smoothstep(0.02, 0.14, upness);
-                if (horizonFade <= 0.001)
+                // 地平线带交给空气透视去收，而不是靠这个 8° 的硬窗口：
+                // 原来 smoothstep(0.02,0.14) 会把 0~8° 整个挖空，而平流云层
+                // 通常是关着的，于是天上出现一条"没有任何云"的带子。
+                // 低仰角的射线 tStart 本来就在 12km 以外，下面的 aerial
+                // perspective 会把它整段淡出，不需要在这里再切一刀。
+                float horizonFade = smoothstep(0.010, 0.075, upness);
+                if (horizonFade <= 0.001 && _CloudDebug <= 0.5)
                     return half4(0.0, 0.0, 0.0, 0.0);
 
                 // WORLD-ANCHORED slab: absolute heights, independent of the
@@ -369,8 +449,11 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 // direct cause of far-field slice banding (48 steps spread
                 // over ~20km undersample the ~30m noise texels badly).
                 float tEnd   = min(max(tA, tB), min(kMaxDist, baseY * 16.0));
+                // 调试模式下"射线没穿过云层"本身就是要看的结果，画成纯红，
+                // 不要和"穿过了但密度为 0"（Coverage 视图的纯黑）混成一回事。
                 if (tEnd <= tStart)
-                    return half4(0.0, 0.0, 0.0, 0.0);
+                    return _CloudDebug > 0.5 ? half4(1.0, 0.0, 0.0, 1.0)
+                                             : half4(0.0, 0.0, 0.0, 0.0);
 
                 int   marchSteps = (int)clamp(_CloudMarchParams.y, 8.0, 48.0);
                 float stepLen    = (tEnd - tStart) / (float)marchSteps;
@@ -449,8 +532,12 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                              + sunCol * lightE;
 
                     // Silver lining - back-lit golden edge towards the sun.
+                    // 银边必须按"这个体素到底有多少云"门控：薄边缘上 lt≈1、
+                    // 又正好是背光方向，不门控就会在轮廓外沿撒一圈白色盐粒
+                    // （时间累积收敛之后依然存在，不是抖动，是真实的错）。
                     float silver = pow(viewSun, _CloudShadeParams.w)
-                                 * _CloudShadeParams.z * lt;
+                                 * _CloudShadeParams.z * lt
+                                 * saturate(dn * 6.0);
                     S += sunCol * silver;
 
                     // Square the density for a soft extinction onset: thin
@@ -467,6 +554,32 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 // cloud brightness once (not per slice). Yields 2-3 clean
                 // shading zones per cloud (white crown / grey base) instead
                 // of per-slice stripes. steps <= 1.5 disables it.
+                // ---- 调试视图 ------------------------------------------------
+                // 在云层中点重新取一次样，把密度模型的各个中间量画出来。
+                // 直接 return，不走 temporal 混合（否则历史会把调试色洗淡）。
+                if (_CloudDebug > 0.5)
+                {
+                    float  tm    = lerp(tStart, tEnd, 0.5);
+                    float3 pd    = camPos + viewDir * tm;
+                    float  h01d  = saturate((pd.y - (baseY - CloudBendDroop(pd.xz, camPos.xz))) / thickness);
+                    float  rr, hg;
+                    float  lodProbe = clamp(max(lodStep,
+                        log2(max(tm * 2.0 / (_CloudRTSize.y * texelWorld), 1.0))), 0.0, 7.0);
+                    float2 probeWarp;
+                    float  weatherAt = CloudWeather(pd, windOffset, camPos.xz, lodProbe, probeWarp);
+                    CloudDensity(pd, h01d, windOffset, camPos.xz, lodProbe,
+                                 stepLen / thickness, rr, hg);
+                    float3 dbg = 0.0;
+                    if (_CloudDebug < 1.5)      dbg = (1.0 - T);                       // 累积覆盖度
+                    else if (_CloudDebug < 2.5) dbg = saturate(tStart / kMaxDist * 8.0) // 区间起点
+                                                  + float3(0.0, saturate(tEnd / kMaxDist * 8.0), 0.0);
+                    else if (_CloudDebug < 3.5) dbg = saturate(rr);                     // 原始噪声场
+                    else if (_CloudDebug < 4.5) dbg = saturate(hg);                     // 高度剖面
+                    else if (_CloudDebug < 5.5) dbg = saturate(clamp(max(lodStep, 0.0), 0.0, 7.0) / 7.0); // mip
+                    else                        dbg = saturate(weatherAt);              // 天气场
+                    return half4(dbg, 1.0);
+                }
+
                 float coverageA = 1.0 - T;
                 if (_CloudShadeParams.x > 1.5 && coverageA > 1e-3)
                 {
@@ -482,7 +595,7 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 alpha *= 1.0 - smoothstep(baseY * 5.0, baseY * 16.0, tStart);
                 // Cull ultra-faint veil texels: at half resolution they read
                 // as dither speckle along silhouettes, not as soft haze.
-                alpha = smoothstep(0.02, 0.4, alpha);
+                alpha = smoothstep(0.05, 0.4, alpha);
                 half4 cur = half4(col * horizonFade, alpha);
 
                 // ---- Temporal accumulation ---------------------------------

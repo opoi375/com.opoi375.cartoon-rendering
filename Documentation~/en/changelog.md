@@ -1,4 +1,29 @@
 # Changelog
+## v1.6.0
+
+### Fixed
+- **Volumetric clouds drew almost nothing even when enabled**: the shape volume combined its noise with the Schneider Perlin-Worley term `pw = (perlin - (1 - worley)) / worley`, which **collapses to exactly 0** wherever `worley` is small - measured on the shipped asset, about half of all voxels were 0, while the coverage threshold sat above 0.48, so nothing got through. The result was "Feature installed, volume on, not a single cloud in the sky" with no error. The bake now ends with a CDF histogram normalisation that remaps each channel onto a uniform distribution, which puts `coverage` back to meaning "fraction of sky covered"
+- **Normalisation cannot fix ties**: when half the samples share one value they remain a single constant block after the remap, so sliding `coverage` past that value jumped the sky from 0% to 50% cloud. `perlin` is now mixed back into `pw` at 12% to leave ordering information in the dead zone
+- **The weather layer degenerated into a constant**: the 2D weather map originally re-centred on the camera like the 3D shape, pinning the sample window at uv≈0 so the sky overhead always read the same corner of the tile. Both maps now sample absolute world coordinates with `frac()` (equivalent under Repeat wrap, it only keeps the values in a float-friendly range)
+- **A wrong reference type left the weather map null**: references to generated textures (`AssetDatabase.CreateAsset`) must use `type: 2`; writing `type: 3` as for imported assets resolves to null and the weather layer silently stopped working
+- **White salt grains across the far field**: the LOD contrast compensation was uncapped, so at lod 6 a heavily blurred field got amplified 3x. The boost is now capped at 1.8x and the threshold band widens with lod at the same time
+- **The silver lining sprinkled dots outside the silhouette**: thin edge voxels received full-intensity sun and deposited bright colour with a tiny alpha, and it survived temporal convergence (it was not dither, it was simply wrong). The silver term is now gated by voxel density
+- **A cloud-free stripe along the horizon**: `horizonFade`'s `smoothstep(0.02, 0.14)` hollowed out 0-8° of sky while the flat cloud layer is off by default. Those low rays already start beyond the aerial-perspective fade distance, so the window is narrowed to `0.010~0.075` instead
+- **Newly created sky assets showed no clouds**: `CreateAssetMenu` does not fill texture references, and with `volCloudNoiseTexture` null the noise samples as 0 forever, so density never crossed the threshold - silently. The shipped references are now filled in at edit time, and the runtime logs one warning per missing map (not per frame)
+- The baker's trilinear interpolation used `w` as the weight for the final lerp instead of `v`; fixed
+
+### Added
+- **`Textures/CloudShape2D.asset`** (512², shipped): the density field went from "one 3D noise" to four stacked layers - weather (which part of the sky has clouds) → shape (the outline of one cloud) → domain warp (curling the edges) → high-frequency erosion (cauliflower bite). A single 3D noise is ergodic: spread over the sky it can only produce one sheet of frosted glass
+- **`Tools > Cloud > Bake Cloud Shape Maps`** to re-bake the weather map; both bakes now run the CDF normalisation
+- **Four new cloud parameters**: `volCloudShapeTexture`, `volCloudWeatherScale`, `volCloudWeatherContrast`, `volCloudWeatherDetail`, `volCloudWarp`
+- **`volCloudDebug` with six views**: Coverage / MarchRange / Field / Profile / Lod / Weather. "No clouds" and "clouds drawn but invisible" cannot be told apart by eye - all three root causes in this release were found this way
+- The debug path gained the `Weather` channel, and "the ray never crosses the slab" now renders pure red so it cannot be confused with the pure black of "crossed it, density zero"
+
+### Changed
+- Volumetric cloud defaults retuned for *separable* cumulus: `coverage` 0.5→0.24, `baseHeight` 600→800, `thickness` 700→300, `scale` 0.0005→0.00065, `density` 1.2→1.7, `marchSteps` 40→32, `detail` 0.35→0.8, `silverIntensity` 0.6→0.3, `windSpeed` 12→7. The shipped and sample sky presets were updated in step
+- The cloud-base height ramp narrowed from 0.22 to 0.12 - cumulus need a flat floor, and a rounded base has no character
+- The volume's Perlin FBM went from 5 to 6 octaves
+
 ## v1.5.0
 
 ### Fixed

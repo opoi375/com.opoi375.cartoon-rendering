@@ -39,21 +39,27 @@
 | 参数 | 默认 | 说明 |
 | --- | --- | --- |
 | `volumetricCloudsEnabled` | false | 总开关 |
-| `volCloudNoiseTexture` | 内置 | 128³ 噪声体积（可用烘焙工具重生成） |
-| `volCloudCoverage` | 0.5 | 云量 |
-| `volCloudBaseHeight` | 600 | 云底高度（米） |
-| `volCloudThickness` | 700 | 云层厚度（米） |
-| `volCloudScale` | 0.0005 | 噪声平铺尺度的倒数（≈2000m/块） |
-| `volCloudDensity` | 1.2 | 整体密度 |
-| `volCloudMarchSteps` | 40 | 步进次数（8~48） |
-| `volCloudLightSteps` | 5 | 朝太阳的光照步进数 |
-| `volCloudDetail` | 0.35 | 细节侵蚀强度 |
-| `volCloudWindSpeed` | 12 | 风速 |
+| `volCloudNoiseTexture` | 内置 | 128³ 形状体积噪声（R=形状，GBA=细节侵蚀）。做过 CDF 归一化，可用烘焙工具重生成 |
+| `volCloudShapeTexture` | 内置 | 512² 天气 / 域扭曲图（R=大尺度天气，G=中尺度，BA=扭曲）。**缺它云会均匀铺满天** |
+| `volCloudCoverage` | 0.24 | 云量。CDF 归一化之后就是字面的"天空被遮住的比例" |
+| `volCloudWeatherScale` | 0.0002 | 天气图世界尺度，0.0002 → 一块 5 km |
+| `volCloudWeatherContrast` | 0.55 | 天气在局部把覆盖度推开多少，0 = 均匀天空 |
+| `volCloudWeatherDetail` | 0.3 | 大尺度云系 ↔ 单朵云的混比 |
+| `volCloudWarp` | 0.5 | 域扭曲强度（噪声图块单位） |
+| `volCloudBaseHeight` | 800 | 云底高度（米，绝对世界 Y） |
+| `volCloudThickness` | 300 | 云层厚度（米） |
+| `volCloudScale` | 0.00065 | 3D 形状尺度，0.00065 → 一块 1.5 km，单体云约 400 m |
+| `volCloudDensity` | 1.7 | 整体密度 |
+| `volCloudMarchSteps` | 32 | 步进次数（8~48） |
+| `volCloudLightSteps` | 6 | 朝太阳的光照步进数 |
+| `volCloudDetail` | 0.8 | 高频侵蚀强度（椰菜花边缘） |
+| `volCloudWindSpeed` | 7 | 风速 |
 | `volCloudShadeSteps` | 3 | 卡通明暗分区数 |
-| `volCloudShadeSmooth` | 0.2 | 分区边界软化 |
-| `volCloudSilverIntensity` | 0.6 | 银边强度 |
-| `volCloudSilverPower` | 6 | 银边聚拢度 |
-| `volCloudTemporalEnabled` | true | **时序累积开关**（关闭时不分配历史缓冲、jitter 冻结） |
+| `volCloudShadeSmooth` | 0.35 | 分区边界软化 |
+| `volCloudSilverIntensity` | 0.3 | 逆光银边强度（按体素密度门控，不会在轮廓外撒白点） |
+| `volCloudSilverPower` | 8 | 银边聚拢度 |
+| `volCloudDebug` | Off | 调试视图：Coverage / MarchRange / Field / Profile / Lod / Weather |
+| `volCloudTemporalEnabled` | true | 时序累积开关（关闭时不分配历史缓冲、jitter 冻结） |
 | `volCloudTemporal` | 0.8 | 累积权重（0~0.9，0 = 关闭混合） |
 
 ## Sky Gradient（三段调色板）

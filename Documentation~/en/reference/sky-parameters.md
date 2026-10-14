@@ -36,25 +36,31 @@ Complete parameter table of the `CartoonProceduralSky` ScriptableObject (default
 
 ## Volumetric Clouds
 
-| Parameter | Default | Description |
+| Parameter | Default | Notes |
 | --- | --- | --- |
-| `volumetricCloudsEnabled` | false | Master switch |
-| `volCloudNoiseTexture` | built-in | 128³ noise volume (re-bakable via tool) |
-| `volCloudCoverage` | 0.5 | Cloud amount |
-| `volCloudBaseHeight` | 600 | Cloud base altitude (m) |
-| `volCloudThickness` | 700 | Slab thickness (m) |
-| `volCloudScale` | 0.0005 | Inverse noise tile size (≈2000 m/tile) |
-| `volCloudDensity` | 1.2 | Overall density |
-| `volCloudMarchSteps` | 40 | March iterations (8–48) |
-| `volCloudLightSteps` | 5 | Light march steps toward the sun |
-| `volCloudDetail` | 0.35 | Detail erosion strength |
-| `volCloudWindSpeed` | 12 | Wind speed |
+| `volumetricCloudsEnabled` | false | Master toggle |
+| `volCloudNoiseTexture` | shipped | 128^3 shape volume noise (R=shape, GBA=erosion). CDF-normalised, regenerable with the bake tool |
+| `volCloudShapeTexture` | shipped | 512^2 weather / domain-warp map (R=large weather, G=mid, BA=warp). **Without it clouds spread evenly across the whole sky** |
+| `volCloudCoverage` | 0.24 | Cloud amount. After CDF normalisation this is literally the fraction of sky covered |
+| `volCloudWeatherScale` | 0.0002 | Weather map world scale; 0.0002 -> one tile spans 5 km |
+| `volCloudWeatherContrast` | 0.55 | How far the weather term pushes coverage locally; 0 = uniform sky |
+| `volCloudWeatherDetail` | 0.3 | Blend from large systems to individual clouds |
+| `volCloudWarp` | 0.5 | Domain warp strength in noise tiles |
+| `volCloudBaseHeight` | 800 | Slab base height (metres, absolute world Y) |
+| `volCloudThickness` | 300 | Slab thickness (metres) |
+| `volCloudScale` | 0.00065 | 3D shape scale; 0.00065 -> 1.5 km tile, ~400 m clouds |
+| `volCloudDensity` | 1.7 | Overall extinction |
+| `volCloudMarchSteps` | 32 | March steps (8~48) |
+| `volCloudLightSteps` | 6 | Steps marched towards the sun |
+| `volCloudDetail` | 0.8 | High-frequency erosion (cauliflower edges) |
+| `volCloudWindSpeed` | 7 | Wind speed |
 | `volCloudShadeSteps` | 3 | Cel band count |
-| `volCloudShadeSmooth` | 0.2 | Band edge softness |
-| `volCloudSilverIntensity` | 0.6 | Silver lining intensity |
-| `volCloudSilverPower` | 6 | Silver lining tightness |
-| `volCloudTemporalEnabled` | true | **Temporal accumulation toggle** (off = no history buffers, frozen jitter) |
-| `volCloudTemporal` | 0.8 | Blend weight (0–0.9; 0 disables blending) |
+| `volCloudShadeSmooth` | 0.35 | Cel band edge softness |
+| `volCloudSilverIntensity` | 0.3 | Back-lit rim (gated by voxel density, so it cannot sprinkle dots outside the silhouette) |
+| `volCloudSilverPower` | 8 | Rim tightness around the sun |
+| `volCloudDebug` | Off | Debug views: Coverage / MarchRange / Field / Profile / Lod / Weather |
+| `volCloudTemporalEnabled` | true | Temporal accumulation toggle (off frees history buffers, freezes jitter) |
+| `volCloudTemporal` | 0.8 | Accumulation weight (0~0.9, 0 = no blending) |
 
 ## Sky Gradient (three palettes)
 

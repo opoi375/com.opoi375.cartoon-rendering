@@ -52,6 +52,13 @@ namespace CartoonRendering
         private static readonly int kCloudHistoryWeightId= Shader.PropertyToID("_CloudHistoryWeight");
         private static readonly int kCloudFrameId        = Shader.PropertyToID("_CartoonCloudFrame");
         private static readonly int kCloudRTSizeId       = Shader.PropertyToID("_CloudRTSize");
+        private static readonly int kCloudDebugId        = Shader.PropertyToID("_CloudDebug");
+
+        // 每张图只警告一次：这个推送是每帧跑的，刷屏比缺图更糟。
+        private static bool s_NoiseMissingWarned;
+        private static bool s_WeatherMissingWarned;
+        private static readonly int kCloudShape2DId      = Shader.PropertyToID("_CloudShape2D");
+        private static readonly int kCloudWeatherId      = Shader.PropertyToID("_CloudWeatherParams");
 
         [Tooltip("Material using the CartoonRendering/CartoonSkyboxFullscreen shader. " +
                  "If left empty (or using an outdated shader), the feature builds one " +
@@ -439,8 +446,37 @@ namespace CartoonRendering
                 mat.SetColor(kAmbNightHorizonId, sky.nightHorizonColor);
                 mat.SetVector(kAmbBlendId, new Vector2(sky.sunsetBlendStart, sky.dayBlendEnd));
 
+                mat.SetFloat(kCloudDebugId, (float)sky.volCloudDebug);
+
+                // 天气图：没赋值时整个调制退化为 0（覆盖度回到全屏常数），
+                // 所以缺图只是"云均匀一点"，不会像旧实现那样什么都不画。
+                mat.SetVector(kCloudWeatherId, new Vector4(
+                    sky.volCloudWeatherScale, sky.volCloudWarp,
+                    sky.volCloudWeatherContrast, sky.volCloudWeatherDetail));
+                if (sky.volCloudShapeTexture != null)
+                    mat.SetTexture(kCloudShape2DId, sky.volCloudShapeTexture);
+
+                // 形状体积缺引用时，噪声采样恒为 0，密度永远过不了阈值 ——
+                // 症状是"云开了但天上什么都没有"，而且不报错。这正是本次
+                // 修复要消灭的那一类静默失败，所以宁可喊出来。
                 if (sky.volCloudNoiseTexture != null)
                     mat.SetTexture(kCloudNoiseTexId, sky.volCloudNoiseTexture);
+                else if (!s_NoiseMissingWarned)
+                {
+                    s_NoiseMissingWarned = true;
+                    Debug.LogWarning("CartoonSkyboxFeature: 体积云已开启，但 " +
+                        sky.name + ".volCloudNoiseTexture 为空 —— 云层不会画出来。" +
+                        "请在 Inspector 里指定包内的 Textures/CloudNoise3D，" +
+                        "或用 Tools > Cloud > Bake Cloud Noise 3D 重新生成。");
+                }
+                if (sky.volCloudShapeTexture == null && !s_WeatherMissingWarned)
+                {
+                    s_WeatherMissingWarned = true;
+                    Debug.LogWarning("CartoonSkyboxFeature: volCloudShapeTexture 为空 —— " +
+                        "天气层退化为均匀覆盖度（云会均匀铺满天，聚不成云系）。" +
+                        "可指定包内的 Textures/CloudShape2D，或 Tools > Cloud > " +
+                        "Bake Cloud Shape Maps 重新生成。");
+                }
             }
 
             private static Matrix4x4 ComputeVP(UniversalCameraData cameraData)

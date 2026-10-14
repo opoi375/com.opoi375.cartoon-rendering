@@ -11,11 +11,12 @@ Menu: **Tools > SDF > SDF Generator** (GPU-accelerated, Compute Shader baking)
 
 ## Cloud Noise Baker
 
-Menu: **Tools > Cloud > Bake Cloud Noise 3D**
+- **Tools > Cloud > Bake Cloud Noise 3D**: builds the tileable 128^3 Perlin-Worley volume (R = cloud masses, GBA = three Worley detail bands) with a full mip chain and trilinear filtering
+- **Tools > Cloud > Bake Cloud Shape Maps**: builds the tileable 512^2 weather map (R = large-scale weather, G = mid-scale, BA = domain warp) that decides which parts of the sky hold cloud systems and how their outlines curl
 
-Generates the 128³ tileable Perlin-Worley noise volume (R = base shape, GBA = Worley detail) with a full mip chain and trilinear filtering, sampled by the volumetric clouds.
+Both bakes finish with a **CDF histogram normalisation** that remaps every channel onto a uniform distribution - that is what makes the volume's `coverage` slider mean "fraction of sky covered". The old bake had no such step: half the shape voxels were exactly 0, so enabling volumetric clouds drew nothing at all.
 
-Re-bake after changing noise parameters; the clouds pick up the new texture automatically.
+Re-bake after changing the noise parameters; the cloud shader picks the new textures up automatically. Both ship inside the package, so normally there is nothing to bake.
 
 ## Water Generators
 
