@@ -30,9 +30,15 @@
 
 Grass Field Tool：编辑期生成草场布局、烘焙交互数据，见[交互草地](/grass/)。
 
-## 水下设置
+## 水下后期
 
-**CartoonRendering > Underwater > Setup Underwater Post Process**：一键给当前 URP Renderer 添加水下后期 Feature。
+- **Tools > Underwater > Setup Underwater Post Process**：给当前激活的 URP 渲染器装上 Feature，并创建一个配好参数的 `Underwater Zone`（局部 Volume + Trigger BoxCollider）
+- **Tools > Underwater > Create Demo Scene**：生成并保存水下演示场景到 `Assets/Scenes/UnderwaterDemo.unity` —— 水池 + 一排**同材质、只有距离不同**（15 / 20 / 26 / 32 / 38 米）的球 + 水面 + 局部 Volume 区域
+- **Tools > Underwater > Build In Current Scene**：只在当前场景里重建，不写场景文件
+- **Tools > Underwater > Dump State**：打印渲染器 / 相机 / 管线 / Volume / shader / 球排距离，用来回答"为什么看不到效果"
+- **Tools > Underwater > Debug > Sky Mask / Fog / Depth / Caustics / Absorption / Off**：调试视图
+
+生成的材质与 Volume Profile 落在 `Assets/CartoonRendering/Underwater/`。详见 [卡通水面与水下效果](/water/)。
 
 ## LED 点阵屏
 

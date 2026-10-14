@@ -1,4 +1,27 @@
 # Changelog
+## v1.5.0
+
+### Fixed
+- **The underwater pass never drew a single pixel**: `UnderwaterPostProcessPass` read `_CameraDepthTexture` without declaring `ConfigureInput(Depth)`, so RenderGraph never bound the depth texture, `SampleSceneDepth` returned 0, every pixel was classified as sky and alpha came out 0. The Feature was installed and the volume active, yet the frame did not change - with no error either. The pass now declares `Depth | Color`, and skips with a warning instead of failing silently when depth is unavailable
+- **`Data/Underwater/UnderwaterZoneProfile.asset` was an empty profile**: `UnderwaterSetup` created the override with `profile.Add<T>()`, which only builds an in-memory instance and serializes as `fileID: 0` - fine in the current session, gone after reopening the scene. Now uses `VolumeProfileFactory.CreateVolumeComponent<T>()` so it becomes a real sub-asset
+- **Injection point was hard-coded**: `Feature.Create()` always forced `BeforeRenderingTransparents`, so the Inspector value did nothing. The serialized value is respected now, defaulting to `BeforeRenderingPostProcessing` (the water surface is transparent, so the pass has to run after it to fog the surface too)
+- **Scene textures were Y-flipped**: injected before the post stack, the destination differs from the camera-rendered depth / opaque textures by one flip on D3D/Metal. The symptom was fog landing on *near* geometry while the distance stayed clear, plus a vertically mirrored ghost. `_UWSceneScaleBias` is now derived from `SystemInfo.graphicsUVStartsAtTop` and shared by the depth read, the opaque read and the world-position reconstruction
+- **Fog colour was 3-4x too bright**: `MaterialPropertyBlock.SetColor` does not convert sRGB to linear (unlike an Inspector Color field), so the fog read as a sheet of white mist. Conversion is now explicit
+- **Caustic frequency and brightness**: `causticsScale` is documented as cycles per metre but was used as radians per metre (0.55 gave an 11 m period), turning the bands into one white wash, and the brightness coefficient overwhelmed the fog. Now converted with 2π, dimmed to a sane range, and faded in over the first 0.6 m below the surface - otherwise the surface itself caught a full-strength pattern and the ceiling glowed
+- **The pass was enqueued even when inactive**: with declared dependencies that made unrelated scenes pay for a depth / opaque copy every frame. `AddRenderPasses` now checks the volume's `IsActive()`
+
+### Changed
+- Editor tool menus moved under **`Tools > Underwater/`** (the docs previously said `CartoonRendering > Underwater > …`, which never matched the code)
+- The renderer is resolved from `GraphicsSettings.currentRenderPipeline` instead of a hard-coded `Assets/Settings/CartoonRP_Renderer.asset`, so the package works in any project
+- The shader no longer depends on `Blit.hlsl` / `TextureXR.hlsl`; it uses the package's own fullscreen triangle, like the volumetric light shader
+- The old "flat tint over the whole screen" behaviour is now "fog must grow with distance": `color` / `tintStrength` still exist, but as two parameters of the new fog model
+
+### Added
+- **Underwater volume parameters grew from 3 to 19**: per-channel absorption (`absorptionRate` / `absorptionColor`), in-scattering fog (`fogDensity` / `deepColor` / `depthToFullColor`), caustics (intensity / frequency / speed / depth fade), refraction wobble, fog-scaled vignette, cartoon `banding`, `waterSurfaceY`, and five debug views
+- **`Tools > Underwater > Create Demo Scene`**: a tank plus a row of spheres sharing one material and differing only in distance (15/20/26/32/38 m), a water surface and a local volume zone - built so that distance is the only variable
+- **`Tools > Underwater > Dump State`**: logs renderer / camera / pipeline / volume / shader status and the sphere-row distances
+- **`Tools > Underwater/Debug/*`**: Sky Mask / Fog / Depth / Caustics / Absorption debug view menus
+
 
 ## v1.4.1
 

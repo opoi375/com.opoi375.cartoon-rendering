@@ -30,9 +30,15 @@ Re-bake after changing noise parameters; the clouds pick up the new texture auto
 
 Grass Field Tool: generate layouts and bake interaction data at edit time. See [Interactive Grass](/en/grass/).
 
-## Underwater Setup
+## Underwater Post Process
 
-**CartoonRendering > Underwater > Setup Underwater Post Process**: adds the underwater post-process Feature to the current URP Renderer in one click.
+- **Tools > Underwater > Setup Underwater Post Process**: installs the Feature on the active URP renderer and creates a ready-configured `Underwater Zone` (local Volume + trigger BoxCollider)
+- **Tools > Underwater > Create Demo Scene**: builds and saves a demo scene to `Assets/Scenes/UnderwaterDemo.unity` - a tank plus a row of spheres that share one material and differ **only in distance** (15 / 20 / 26 / 32 / 38 m), a water surface and a local volume zone
+- **Tools > Underwater > Build In Current Scene**: rebuilds in the current scene only, without writing a scene file
+- **Tools > Underwater > Dump State**: logs renderer / camera / pipeline / volume / shader status and the sphere-row distances - the answer to "why can't I see it"
+- **Tools > Underwater > Debug > Sky Mask / Fog / Depth / Caustics / Absorption / Off**: debug views
+
+Generated materials and the volume profile land in `Assets/CartoonRendering/Underwater/`. See [Cartoon water & underwater](/en/water/).
 
 ## LED Dot-Matrix Screen
 

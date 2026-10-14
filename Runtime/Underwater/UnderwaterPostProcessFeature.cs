@@ -8,12 +8,12 @@ namespace CartoonRendering
 {
     /// <summary>
     /// Adds the underwater post process to a renderer. Add it via the menu
-    /// "CartoonRendering &gt; Underwater &gt; Setup Underwater Post Process"
+    /// <c>Tools &gt; Underwater &gt; Setup Underwater Post Process</c>
     /// (or manually: Renderer Features &gt; Add &gt; Underwater Post Process).
     ///
-    /// The material is resolved lazily: if none is assigned, one is built
-    /// from the UnderwaterPostProcess shader at runtime, so no asset setup
-    /// is required beyond adding the feature.
+    /// The material is resolved lazily: if none is assigned, one is built from
+    /// the UnderwaterPostProcess shader at runtime, so no asset setup is needed
+    /// beyond adding the feature.
     /// </summary>
     public sealed class UnderwaterPostProcessFeature : ScriptableRendererFeature
     {
@@ -23,29 +23,34 @@ namespace CartoonRendering
                  "If left empty, the feature builds one automatically at runtime.")]
         public Material material;
 
-        [Tooltip("Injection point. BeforeRenderingTransparents runs after opaques + " +
-                 "skybox but BEFORE the post-processing chain, so the active " +
-                 "colour texture still holds the scene (fetching the source there " +
-                 "is reliable). Transparents (e.g. the water plane) render after " +
-                 "this pass and stay clean.")]
-        public RenderPassEvent renderPassEvent = RenderPassEvent.BeforeRenderingTransparents;
+        [Tooltip("Injection point. The default runs after transparents and " +
+                 "before the post-processing chain, so the water surface itself " +
+                 "(a transparent object) is inside the fog too. Moving it before " +
+                 "the transparents leaves the surface clean - that used to be " +
+                 "forced in Create() and could not be changed from the Inspector.")]
+        public RenderPassEvent renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
 
         private UnderwaterPostProcessPass m_Pass;
 
         /// <inheritdoc/>
         public override void Create()
         {
-            // Force the early injection point during bring-up: the serialized
-            // feature in the renderer asset may still hold the old event.
+            // 事件点用 Inspector / 序列化里的值，不再在代码里硬覆盖
             m_Pass = new UnderwaterPostProcessPass(null)
             {
-                renderPassEvent = RenderPassEvent.BeforeRenderingTransparents
+                renderPassEvent = renderPassEvent
             };
         }
 
         /// <inheritdoc/>
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
+            // 不激活就根本不进渲染图：这个通道声明了 Depth + Color 依赖，
+            // 每帧都挂上去会让不相关的场景白付一次深度图 / 不透明图的拷贝。
+            var underwater = VolumeManager.instance.stack.GetComponent<UnderwaterPostProcess>();
+            if (underwater == null || !underwater.IsActive())
+                return;
+
             if (!TryResolveMaterial())
                 return;
 
@@ -56,7 +61,10 @@ namespace CartoonRendering
         {
             var shader = Shader.Find(kShaderName);
             if (shader == null)
+            {
+                Debug.LogWarning($"[Underwater] 找不到 shader：{kShaderName}");
                 return false;
+            }
 
             // The serialized material might reference an older shader; keep it
             // in sync so existing setups survive shader edits.

@@ -1,5 +1,75 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-2087896101141133539
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b51d6e75591fa3d4eb34a4dfc0893fbc, type: 3}
+  m_Name: UnderwaterPostProcess
+  m_EditorClassIdentifier: CartoonRendering.Runtime::CartoonRendering.UnderwaterPostProcess
+  active: 1
+  intensity:
+    m_OverrideState: 1
+    m_Value: 1
+  color:
+    m_OverrideState: 1
+    m_Value: {r: 0.08, g: 0.42, b: 0.55, a: 1}
+  deepColor:
+    m_OverrideState: 1
+    m_Value: {r: 0.012, g: 0.075, b: 0.12, a: 1}
+  depthToFullColor:
+    m_OverrideState: 1
+    m_Value: 9
+  tintStrength:
+    m_OverrideState: 1
+    m_Value: 0.85
+  fogDensity:
+    m_OverrideState: 1
+    m_Value: 0.05
+  absorptionColor:
+    m_OverrideState: 1
+    m_Value: {r: 1, g: 0.45, b: 0.22, a: 1}
+  absorptionRate:
+    m_OverrideState: 1
+    m_Value: 0.075
+  waterSurfaceY:
+    m_OverrideState: 1
+    m_Value: 0
+  causticsIntensity:
+    m_OverrideState: 1
+    m_Value: 0.7
+  causticsScale:
+    m_OverrideState: 1
+    m_Value: 0.55
+  causticsSpeed:
+    m_OverrideState: 1
+    m_Value: 0.9
+  causticsDepthFade:
+    m_OverrideState: 1
+    m_Value: 12
+  waveStrength:
+    m_OverrideState: 1
+    m_Value: 0.007
+  waveScale:
+    m_OverrideState: 1
+    m_Value: 1
+  waveSpeed:
+    m_OverrideState: 1
+    m_Value: 1.2
+  vignette:
+    m_OverrideState: 1
+    m_Value: 0.35
+  banding:
+    m_OverrideState: 1
+    m_Value: 0
+  debug:
+    m_OverrideState: 1
+    m_Value: 0
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -13,4 +83,4 @@ MonoBehaviour:
   m_Name: UnderwaterZoneProfile
   m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::UnityEngine.Rendering.VolumeProfile
   components:
-  - {fileID: 0}
+  - {fileID: -2087896101141133539}

@@ -1,4 +1,27 @@
 # Changelog
+## v1.5.0
+
+### 修复
+- **水下后期从未画出任何像素**：`UnderwaterPostProcessPass` 读 `_CameraDepthTexture` 却没有声明 `ConfigureInput(Depth)`，RenderGraph 不会把深度图绑进来 → `SampleSceneDepth` 恒为 0 → 每个像素都被判成"天空"、alpha 输出 0。Feature 装上了、Volume 也激活了，画面却毫无变化，而且不报任何错。现在通道声明 `Depth | Color` 依赖；拿不到深度时跳过并打一条警告，不再静默
+- **`Data/Underwater/UnderwaterZoneProfile.asset` 是个空 profile**：`UnderwaterSetup` 用 `profile.Add<T>()` 建覆盖项，那只是内存实例，序列化出来是 `fileID: 0` —— 当前会话正常，场景一重开 Zone 里什么都没有。改用 `VolumeProfileFactory.CreateVolumeComponent<T>()` 写成子资产
+- **注入点被代码硬覆盖**：`Feature.Create()` 无条件写成 `BeforeRenderingTransparents`，Inspector 改了没用。现在尊重序列化值，默认 `BeforeRenderingPostProcessing`（水面是透明物体，只有跑到它后面才可能被雾盖住）
+- **场景纹理 Y 翻转**：注入在 post stack 之前时，要写的目标与相机渲染出的深度 / 不透明图在 D3D/Metal 上差一次翻转，表现为"雾糊在近处、远处反而清楚"并带上下镜像重影。按 `SystemInfo.graphicsUVStartsAtTop` 算出 `_UWSceneScaleBias`，深度、不透明图与世界坐标重建共用同一个翻转后的 uv
+- **雾色亮 3-4 倍**：`MaterialPropertyBlock.SetColor` 不做 sRGB→线性转换（与 Inspector 的 Color 字段不同），雾色按线性值直接用会糊成一层白雾。现在显式转线性
+- **焦散频率与亮度**：`causticsScale` 文档写"每米周期数"，实现却按弧度用（0.55 实际周期 11 米），亮带糊成整片白；亮度系数也过高，会把雾整个盖掉。现在按 2π 换算并压到合理范围，另在水面下 0.6 米内淡入 —— 否则水面自己接到一份满强度花纹，像天花板在发光
+- **不激活也进渲染图**：Feature 原来每帧无条件 `EnqueuePass`；通道一旦声明依赖，就会让不相关的场景白付一次深度 / 不透明图拷贝。现在 `AddRenderPasses` 里按 Volume `IsActive()` 判断
+
+### 变更
+- 编辑器工具菜单统一到 **`Tools > Underwater/`**（原文档写的 `CartoonRendering > Underwater > …` 与代码不符）
+- 渲染器不再写死 `Assets/Settings/CartoonRP_Renderer.asset`，改从 `GraphicsSettings.currentRenderPipeline` 解析 —— 包放进任何工程都能用
+- 着色器去掉 `Blit.hlsl` / `TextureXR.hlsl` 依赖，改用包内自带的全屏三角形（与体积光一致）
+- 旧行为"整屏平涂一层颜色"改成"雾必须随距离长出来"：`color` / `tintStrength` 仍在，但只是新雾模型的两个参数
+
+### 新增
+- **水下 Volume 参数从 3 个扩到 19 个**：逐通道吸收（`absorptionRate` / `absorptionColor`）、内散射雾（`fogDensity` / `deepColor` / `depthToFullColor`）、焦散（强度 / 频率 / 速度 / 存活深度）、折射抖动、按雾量生效的暗角、卡通分层 `banding`、`waterSurfaceY`、5 个调试视图
+- **`Tools > Underwater > Create Demo Scene`**：水池 + 15/20/26/32/38 米排开的同材质球排 + 水面 + 局部 Volume 区域，专门用来隔离"距离"这一个变量
+- **`Tools > Underwater > Dump State`**：打印渲染器 / 相机 / 管线 / Volume / shader / 球排距离
+- **`Tools > Underwater/Debug/*`**：Sky Mask / Fog / Depth / Caustics / Absorption 调试视图菜单
+
 
 ## [Unreleased]
 
