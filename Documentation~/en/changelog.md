@@ -1,4 +1,22 @@
 # Changelog
+## v1.10.0
+
+### Added
+- **Screen-Space Indirect Light (SSILVB)**: an implementation of *Screen Space Indirect Lighting with Visibility Bitmask* (Therrien / Levesque / Gilet, arXiv:2301.11376) — one screen-space march producing **ambient occlusion and colored indirect light** at once. The core is a **32-sector visibility bitmask** (one `uint`) replacing GTAO's two horizon angles: each sample sets the sector range it covers and contributes light in proportion to the sectors it covers that no closer sample has occluded (paper Algorithm 1, `countbits(b_j & ~b_i)/Nb`), times the light buffer and two cosine terms; AO = 1 − bits set / 32. Against SSAO / GTAO:
+  - **Constant surface thickness**: samples have front- and back-face angles, so thin geometry (fences, railings, ladders) only blocks the angle it actually subtends and light passes behind it — no falloff heuristics, no halos, no over-darkening behind fences
+  - **Directional information for free**: the bitmask knows which directions are open, so the same march gathers the color bouncing off neighbouring surfaces (multiplicative composite `scene × (1 + indirect) × AO`, not additive fog)
+  - **Less noise**: bitwise sector updates cover many sectors per sample — much cleaner than stochastic SSGI at the same sample count
+  - Depth / normals / opaque color copy only; fully screen-space, zero precomputation, scalable via resolution divisor and sample counts
+- **Cel-banded AO**: the `banding` parameter quantises visibility into N steps for hard-edged comic shadows (same knob feel as the volumetric light banding)
+- **Debug views**: the Volume `debug` mode shows visibility (white = open) or indirect contribution directly
+- `Tools/SSIL/Setup In Renderer` one-click renderer setup; EditMode smoke tests (Volume defaults off, shader pass count matches the C# pass indices)
+
+### Implementation notes
+- The "direct light buffer" is `_CameraOpaqueTexture` (the shaded opaque scene color) rather than a dedicated direct-light G-buffer — bounced light carries object albedo, which suits cartoon rendering and saves a G-buffer
+- Angles follow the paper's "bit field centred on the projected normal": the signed in-slice angle relative to the projected normal (`atan2`) maps the hemisphere [-π/2, π/2] onto [0, 1], filling all 32 sectors; angles below the tangent plane clamp to the edge, giving "infinite thickness only up to grazing"
+- Composite uses `Blend DstColor Zero` (multiply) so it only writes activeColor — avoiding the RenderGraph trap of reading it back as an empty buffer; blur and upsample both use depth-similarity weights
+- The reference GLSL on cybereality.com inverts the indirect weight (`1 - countbits(...)/Nb`, opposite of paper line 23); this implementation follows the paper
+
 ## v1.9.0
 
 ### Removed

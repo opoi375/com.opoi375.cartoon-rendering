@@ -45,6 +45,10 @@ features:
     title: Volumetric Light (God Rays)
     details: Screen-space ray marching with main-light shadow map sampling — real scattering, not a radial-blur fake. Half resolution with a depth-aware upsample, plus cartoon banding
     link: /en/volumetric-light/
+  - icon: 💡
+    title: Screen-Space Indirect Light
+    details: Visibility-bitmask GTAO — clean AO and colored indirect light in one march; fixed surface thickness lets light pass behind fences, plus cel banding
+    link: /en/ssil/
   - icon: 🔠
     title: LED Dot-Matrix Text
     details: Render any text as an LED dot-matrix sign — fully procedural round dots, fwidth anti-aliasing, runtime text-mask baking, HDR glow with scan line and per-dot flicker

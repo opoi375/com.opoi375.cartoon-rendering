@@ -45,6 +45,10 @@ features:
     title: 体积光（上帝光）
     details: 屏幕空间光线步进 + 主光阴影图采样，真散射而非径向模糊伪影，半分辨率 + 深度感知上采样，另有卡通分层
     link: /volumetric-light/
+  - icon: 💡
+    title: 屏幕空间间接光照
+    details: 可见性位掩码版 GTAO：一次追踪同时产出干净 AO 与带色间接光，固定表面厚度让光从栅栏背后穿过，附卡通分层
+    link: /ssil/
   - icon: 🔠
     title: LED 点阵文字屏
     details: 把任意文字渲染成 LED 点阵屏 —— 圆点纯程序化生成、fwidth 抗锯齿、运行时烘焙文字遮罩，HDR 辉光 + 扫描线 + 逐点闪烁
