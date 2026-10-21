@@ -9,13 +9,23 @@ Menu: **Tools > SDF > SDF Generator** (GPU-accelerated, Compute Shader baking)
 - **Tab 1 "Mask → SDF"**: bakes a black-and-white mask into a normalized SDF texture (0.5 is the boundary) — for PBRToon face-shadow maps, dissolve effects, etc.
 - **Tab 2 "Frames → Gradient"**: interpolates a set of SDF textures named with a `_frameNumber` suffix (e.g. `xxx_SDF_177`) into a gradient texture — for dissolve / burn / growth effects
 
-## Cloud noise
+## Cloud Noise
 
-Since the v1.8.0 cloud rewrite there is **nothing to bake**: cloud shapes come
-from discrete instances, and the noise that warps outlines and erodes edges is
-computed procedurally in the shader. The `Tools > Cloud > Bake ...` menus and the
-`CloudNoise3D` / `CloudShape2D` assets were removed.
+**Tools > Clouds > Bake Noise** bakes all three maps used by the volumetric clouds:
 
+| Menu | Asset | Contents |
+| --- | --- | --- |
+| Bake Shape Noise 3D | `CloudShape3D` 128^3 | R = Perlin-Worley, GBA = Worley FBM @ f4/f8/f16 |
+| Bake Detail Noise 3D | `CloudDetail3D` 32^3 | High-frequency Worley FBM (rim bite) |
+| Bake Weather Map 2D | `CloudWeather2D` 512^2 | R = coverage, G = cloud type, BA = domain warp |
+
+All three ship inside the package; normally there is nothing to bake. Re-run after changing
+the noise construction - the cloud shader picks the new maps up automatically.
+
+::: warning Do not histogram-equalise (CDF) the channels
+A uniform distribution looks punchier but flattens the Perlin-Worley mass structure, and the
+clouds dissolve into a uniform sheet of lint.
+:::
 
 ## Water Generators
 

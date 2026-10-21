@@ -34,46 +34,38 @@ Complete parameter table of the `CartoonProceduralSky` ScriptableObject (default
 | `cloudIntensity` | 1.0 | Intensity |
 | `cloudTexture` | — | Cloud noise texture |
 
-## Volumetric Clouds
-
-> Rewritten in v1.8.0: density is now built from **discrete cloud instances** (the
-> world plane is split into cells and each cloud is placed on its own). The old
-> model thresholded a continuous noise by coverage - past the percolation threshold
-> (~0.3) the field is topologically connected, so the sky is inevitably one mass.
-> That is topology, not tuning.
-> The 2D texture cloud layer was removed at the same time.
-
 | Parameter | Default | Notes |
 | --- | --- | --- |
 | `volumetricCloudsEnabled` | false | Master toggle |
-| `volCloudSpacing` | 950 | Cell size in metres - sets the gaps between clouds |
-| `volCloudCoverage` | 0.62 | Whether a cell holds a cloud. Fades in smoothly, pushed by Weather |
-| `volCloudSize` | 0.55 | Radius as a fraction of the cell (x2 ~ the narrowest gap) |
-| `volCloudSizeJitter` | 0.6 | Radius randomness |
-| `volCloudWeather` | 0.4 | Large-scale weather modulation (wavelength = 8 cells). 0 = even scatter |
-| `volCloudBaseHeight` | 750 | Cloud base (absolute world Y, metres) |
-| `volCloudThickness` | 420 | Maximum thickness of one cloud; each varies by Height Jitter |
-| `volCloudHeightJitter` | 0.6 | Thickness randomness |
-| `volCloudDome` | 0.5 | Dome exponent: 0.25 = wide/flat (stratus), 0.7 = round (cumulus) |
-| `volCloudWarp` | 0.55 | Outline domain warp (pushes samples so edges curl) |
-| `volCloudNoiseFreq` | 0.002 | Warp / erosion noise frequency (cycles per metre) |
-| `volCloudDetail` | 0.7 | Edge erosion (surface band only, cores untouched) |
-| `volCloudDensity` | 1.9 | Extinction |
-| `volCloudMarchSteps` | 32 | View march steps (8~64) |
-| `volCloudLightSteps` | 4 | Sun self-shadow steps (1~8) |
+| `volCloudShapeTex` | shipped | Shape noise 128^3: R = Perlin-Worley, GBA = Worley FBM @ f4/f8/f16 |
+| `volCloudDetailTex` | shipped | Detail noise 32^3: high-frequency Worley FBM for rim erosion |
+| `volCloudWeatherTex` | shipped | Weather map 512^2: R = coverage, G = cloud type, BA = domain warp |
+| `volCloudShapeScale` | 1800 | **Metres per noise tile - the most direct "cloud size" knob.** Cumulus 1500~2500; 455 reads as smoke streaks |
+| `volCloudCoverage` | 0.42 | Global coverage; **shifts** the weather map's local coverage (does not multiply) |
+| `volCloudBaseHeight` | 900 | Cloud base (absolute world Y, metres) |
+| `volCloudThickness` | 1100 | Layer thickness (metres) |
+| `volCloudWeatherScale` | 0.00004 | Weather map world scale: 1 metre -> map tiles. 0.00004 -> one tile ~25 km |
+| `volCloudWarp` | 0.12 | Domain warp strength (noise tiles) |
+| `volCloudNoiseLod` | 0 | Noise mip. Raise to reduce shimmer at a cost in softness |
+| `volCloudDensity` | 6.0 | Extinction |
+| `volCloudDetail` | 0.5 | Rim erosion strength (cores untouched) |
+| `volCloudMarchSteps` | 48 | View march steps (8~64) |
+| `volCloudLightSteps` | 6 | Sun self-shadow steps (1~8) |
 | `volCloudGForward` | 0.75 | Dual-lobe HG forward anisotropy |
 | `volCloudGBackward` | -0.25 | Backward lobe g |
 | `volCloudPhaseForward` | 0.65 | Forward lobe weight |
 | `volCloudScatterOctaves` | 3 | Multiple-scattering octaves (1 = single scattering, grey cores) |
-| `volCloudAerialPerspective` | 0.8 | Aerial perspective on clouds (extinction + inscatter tint) |
+| `volCloudAerialPerspective` | 0.8 | Aerial perspective (extinction + inscatter tint) |
+| `volCloudSunIntensity` | 1.5 | Direct strength (sun colour is luminance-normalised, 1.0 ~ pure white) |
+| `volCloudAmbientIntensity` | 1.0 | Ambient (diffuse) strength. Bases that refuse to go dark are usually this being too high |
 | `volCloudWindSpeed` | 7 | Wind speed (m/s) |
-| `volCloudShadeSteps` | 3 | Cel band count (<=1.5 disables quantisation) |
+| `volCloudShadeSteps` | **0** | Cel band count. **0 = off (continuous gradients, the realistic default)**; 2~4 for stylised hard bands |
 | `volCloudShadeSmooth` | 0.35 | Band-edge softness |
 | `volCloudSilverIntensity` | 0.3 | Back-lit rim intensity (gated by voxel density) |
 | `volCloudSilverPower` | 8 | Rim tightness |
 | `volCloudTemporalEnabled` | **false** | Known issue: turning it on washes clouds into a translucent veil, see the docs |
 | `volCloudTemporal` | 0.8 | Accumulation weight (only when the toggle above is on) |
-| `volCloudDebug` | Off | Debug views: Coverage / Instance / Height / Edge / Depth / Scatter / integral diagnostic |
+| `volCloudDebug` | Off | Debug views: Coverage / RayCoverage / Height / Density / Depth / Shadow |
 
 ## Sky Gradient (three palettes)
 

@@ -11,9 +11,19 @@
 
 ## 云噪声
 
-体积云重写（v1.8.0）之后**不再需要烘焙噪声图**：云的形状由离散云团实例给出，噪声只负责扭曲轮廓与啃边缘，改为着色器内程序化计算。
-`Tools > Cloud > Bake …` 两个菜单与 `CloudNoise3D` / `CloudShape2D` 资产随之删除。
+**Tools > Clouds > Bake Noise** 一次烘三张图（体积云用）：
 
+| 菜单 | 资产 | 内容 |
+| --- | --- | --- |
+| Bake Shape Noise 3D | `CloudShape3D` 128³ | R = Perlin-Worley，GBA = Worley FBM @ f4/f8/f16 |
+| Bake Detail Noise 3D | `CloudDetail3D` 32³ | 高频 Worley FBM（边缘咬口） |
+| Bake Weather Map 2D | `CloudWeather2D` 512² | R = 覆盖率，G = 云型，BA = 域扭曲 |
+
+三张图都随包提供，正常情况下不需要重烘。改噪声构造后再执行一次即可，体积云会自动使用新图。
+
+::: warning 不要给通道做直方图均衡（CDF）
+均匀分布看着对比更强，但会抹平 Perlin-Worley 的团块结构，云会散成一层均匀棉絮。
+:::
 
 ## 水面生成
 
