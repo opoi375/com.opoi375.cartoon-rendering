@@ -1,4 +1,32 @@
 # Changelog
+## v1.11.0
+
+### Fixed
+- **Clouds were "white pills"**: the density function used a `feather = rad*0.05` (~27 m) soft edge, so `body` was nearly binary - the density field was effectively a **solid ellipsoid**, the noise could only chew the outermost skin, and the render was a smooth white pill. Density is now a **normalised radial gradient across the whole volume** (1 = core, 0 = surface), so the noise actually shapes the cloud instead of skinning it
+- **Every cloud looked identical**: the noise was sampled in world space with **no per-cloud phase offset**, so the same pattern was pasted onto every cloud. Each cloud now offsets the noise by its own hash
+- **The vertical profile was a hemisphere**: `(1-h^2)^dome` leaves only 0.87 of the radius at h=0.5 and 0.6 at h=0.8 - an ice-cream scoop. Changed to `(1-h^3)^dome`: near-cylindrical lower body that rounds off only near the top, which is what makes a cumulus tower stand up
+- **Whole clouds clipped to pure white, destroying all interior structure**: the project's `sunColor` is HDR (~11 in this preset), so no intensity value avoided over-exposure. The sun colour is now **luminance-normalised** before use, so the intensity parameter means "cloud surface brightness relative to white" (1.0 ~ pure white)
+- **A spray of white wisps around every edge**: low-density voxels read as noise at half resolution. Added an edge tightening (`smoothstep(0, 0.25, density)`), which solidifies the rim without touching interior density
+- **Clouds merged into one mass**: `size 0.55 x spacing 950` gives a ~520 m radius against a 950 m spacing, so neighbours inevitably intersect. Presets now use `spacing 1300 / size 0.34`
+- **Cloud bases were lit far too bright**: the ambient "down" colour was the raw horizon colour (0.62/0.76/0.92 in daylight), making bases as bright as crowns. Now horizon x0.45 with a k^2 vertical curve, plus a ground-bounce term (which is what keeps real cloud bases from going black)
+- **The ambient never reached the sky palette**: `_AmbDayTop` and friends were pushed by the Feature but never declared in the shader - so "clouds follow time of day" was only a comment and sunset bases had no warmth. Now declared and used
+
+### Performance
+- **The volumetric cloud shader sat at 99% compiling for minutes** (measured: still running past 72 s): `Worley3` used three nested `[unroll]` layers over the 27-cell neighbourhood, while `CloudDensity` is inlined at the main march (up to 64 iterations), the sun light march (up to 8) and the debug views - copying 27x3 hashes into hundreds of call sites and choking the D3D11 compiler. Now a single `[loop]` (no unrolling), plus a `detailMul` argument so the **self-shadow march takes a cheap path** (skips Worley entirely, only needs "is there cloud here"). The same shader now recompiles in **5-6 seconds**
+- The internal texture no longer samples Worley (it only needs a subtle density variation, value noise suffices)
+
+### Added
+- Noise is layered with each layer doing one job (still fully procedural in the shader, no baked assets):
+  | Layer | Content | Owns |
+  | --- | --- | --- |
+  | L1 | cell instances | the large-scale clouds and the gaps between them |
+  | L2 | billow(value noise), low freq | outline warp (bulge and pinch) |
+  | L3 | billow(Worley) | cauliflower creases and big lobes |
+  | L4 | billow(value noise), mid freq | tearing the big lobes up further |
+  | L5 | billow(value noise), interior | density variation inside the core |
+- `volCloudSunIntensity` / `volCloudAmbientIntensity` as independent strengths (packed into the existing `_CloudProfileParams.zw`, so no new uniforms)
+- `volCloudShadeSteps` now defaults to **0 (off)**: realism needs continuous gradients; stylised hard bands are still available at 2~4
+
 ## v1.10.0
 
 ### Added

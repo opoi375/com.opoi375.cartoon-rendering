@@ -24,21 +24,24 @@ MonoBehaviour:
   starTexture: {fileID: 0}
   cloudColor: {r: 1, g: 0.99, b: 0.97, a: 1}
   volCloudWeather: 0.4
-  volCloudSpacing: 950
-  volCloudSize: 0.55
+  volCloudSpacing: 1300
+  volCloudSize: 0.34
   volCloudSizeJitter: 0.6
+  volCloudNoiseFreq: 0.005
+  volCloudSunIntensity: 1.2
+  volCloudAmbientIntensity: 1.0
   volumetricCloudsEnabled: 1
   volCloudDebug: 0
   volCloudWarp: 0.6
-  volCloudCoverage: 0.62
+  volCloudCoverage: 0.7
   volCloudBaseHeight: 800
-  volCloudThickness: 420
+  volCloudThickness: 700
   volCloudDensity: 1.7
-  volCloudMarchSteps: 32
+  volCloudMarchSteps: 40
   volCloudLightSteps: 6
-  volCloudDetail: 0.7
+  volCloudDetail: 0.65
   volCloudWindSpeed: 7
-  volCloudShadeSteps: 3
+  volCloudShadeSteps: 0
   volCloudShadeSmooth: 0.35
   volCloudSilverIntensity: 0.3
   volCloudSilverPower: 8

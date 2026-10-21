@@ -142,12 +142,13 @@ namespace CartoonRendering
         public float volCloudWarp = 0.55f;
 
         [Range(0.0002f, 0.02f), Tooltip("扭曲 / 侵蚀噪声的频率（每米循环数）。\n" +
-            "500m 的云配 0.002 合适；太大云缘会碎成粉刺，太小变成大块光斑。")]
-        public float volCloudNoiseFreq = 0.002f;
+                 "0.006 ≈ 170m 一个瓣，配 500m 的云正好是大瓣套小咬口；\n" +
+                 "太小退化成一大块光斑（0.002 就是），太碎变成粉刺。")]
+        public float volCloudNoiseFreq = 0.006f;
 
         [Range(0.0f, 1.0f), Tooltip("边缘侵蚀：0 = 光滑椭球，1 = 重度椰菜花咬口。\n" +
             "只啃表面带，云芯实心不动（Remap 形式，覆盖率语义不被破坏）。")]
-        public float volCloudDetail = 0.7f;
+        public float volCloudDetail = 0.8f;
 
         [Header("· 密度与步进")]
         [Range(0.2f, 4.0f), Tooltip("密度 / 消光。1.5~2.5 是厚云，>3 近乎不透明。")]
@@ -178,13 +179,20 @@ namespace CartoonRendering
             "而不是只淡出 alpha（只淡 alpha = 一块悬在半空的白斑）。")]
         public float volCloudAerialPerspective = 0.8f;
 
+        [Range(0.0f, 3.0f), Tooltip("直射阳光强度。云冠亮度与暗底的对比全靠它 —— \n" +
+            "压到 1 以下云会发灰，抬到 1.4~1.8 才有「日光下的白团」。")]
+        public float volCloudSunIntensity = 1.5f;
+
+        [Range(0.0f, 3.0f), Tooltip("环境光（天空漫射）强度。云底暗不下来多半是它太高。")]
+        public float volCloudAmbientIntensity = 1.0f;
+
         [Header("· 风")]
         [Range(0.0f, 40.0f), Tooltip("风速（米/秒）。整片云团网格随风平移。")]
         public float volCloudWindSpeed = 7.0f;
 
         [Header("· 风格化")]
-        [Range(1.0f, 6.0f), Tooltip("cel 明暗分区数。<= 1.5 关闭量化（连续渐变）。")]
-        public float volCloudShadeSteps = 3.0f;
+        [Range(0.0f, 6.0f), Tooltip("cel 明暗分区数。0 = 关闭（连续渐变，写实默认）；卡通硬边分区才开到 2~4，开着会把云内部的层次压平。")]
+        public float volCloudShadeSteps = 0.0f;
 
         [Range(0.0f, 0.5f), Tooltip("分区边界的软化。0 = 硬边，0.5 = 几乎连续。")]
         public float volCloudShadeSmooth = 0.35f;

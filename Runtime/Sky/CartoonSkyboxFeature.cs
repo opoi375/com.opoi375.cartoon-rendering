@@ -468,9 +468,10 @@ namespace CartoonRendering
                 mat.SetVector(kCloudScatterId, new Vector4(
                     sky.volCloudGForward, sky.volCloudGBackward,
                     sky.volCloudPhaseForward, sky.volCloudScatterOctaves));
-                // _CloudProfileParams : x=大气透视强度 y=大尺度天气调制强度
+                // _CloudProfileParams : x=大气透视 y=天气调制 z=太阳强度 w=环境强度
                 mat.SetVector(kCloudProfileId, new Vector4(
-                    sky.volCloudAerialPerspective, sky.volCloudWeather, 0.0f, 0.0f));
+                    sky.volCloudAerialPerspective, sky.volCloudWeather,
+                    sky.volCloudSunIntensity, sky.volCloudAmbientIntensity));
 
             }
 

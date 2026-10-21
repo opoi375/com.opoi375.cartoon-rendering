@@ -24,6 +24,26 @@ Split the world plane into cells (volCloudSpacing)
 
 Cells leave **gaps by construction**, and every cloud has a different radius and thickness - which is what makes a sky read as "several clouds" instead of "a sheet".
 
+## How the noise is layered
+
+The cloud shape is not "one field, thresholded" - it is **five stacked layers, each doing exactly one job**. All procedural in the shader (no baked assets), but the **types matter**:
+
+| Layer | Uses | Owns | Get it wrong and... |
+| --- | --- | --- | --- |
+| L1 | cell instances (hash placement) | the large-scale clouds and the gaps between them | swap for a continuous field and percolation turns the sky into one solid deck |
+| L2 | **billow(value noise)**, low freq | outline warp: bulges, pinches, elongation | plain FBM only wobbles the whole ball |
+| L3 | **billow(Worley)** | cauliflower creases, big lobes | value noise only chews rounded corners, never cauliflower |
+| L4 | **billow(value noise)**, mid freq | tearing the big lobes up, frayed rims | skip it and the rim is one uniform grade of jagged |
+| L5 | **billow(value noise)**, interior | density variation inside the core | skip it and interior lighting is completely uniform |
+
+Three details that matter:
+
+1. **`billow(n) = 1 - abs(2n - 1)`** folds a smooth field into ridges: bulges get more convex, seams pinch shut. That fold is where bulge-and-pinch comes from; plain FBM at any octave count only ever makes Gaussian soft balls.
+2. **The Worley cell boundary** is what puts creases in the surface; value noise cannot produce sharp folds.
+3. **Every cloud needs its own noise phase**: the noise is sampled in world space, so without offsetting per cloud hash the same pattern is pasted onto every cloud and the sky shows a row of identical puffs (which is exactly what it looked like).
+
+Density composition: `density = shape * 1.5 - carve * detail * 1.1`, where `shape` is a **normalised radial gradient** (1 = core, 0 = surface). **That gradient has to span the whole volume** - an early version used a single 27 m soft skin, which made the density binary, so the noise could only chew the outermost skin and the result was a white pill.
+
 ## Key parameters
 
 | Parameter | Notes |
@@ -61,6 +81,10 @@ Full table in the [sky parameter reference](/en/reference/sky-parameters#volumet
 | `Depth` | Has values | **Pure red = the ray never crosses the slab** (base too high / too thin) |
 | `Scatter` | Varies with angle | Flat = the phase function is inactive |
 | `Integral diagnostic` (item 7) | **Pure yellow = opaque and bright** | Reddish = too thin; greenish = too dark. One capture tells you which |
+
+## Performance: shader compilation
+
+`Worley3` is a 27-cell search. **Never mark it `[unroll]`** - `CloudDensity` is inlined at the main march (up to 64 iterations), the sun light march (up to 8) and the debug views, so unrolling copies 27x3 hashes into hundreds of call sites and the D3D11 compiler sits at 99% for minutes (measured: still running past 72 s). Use a single `[loop]`, and let the **self-shadow march take a cheap path** (`detailMul = 0`, skipping Worley): the same shader then recompiles in about 5 seconds.
 
 ## Known issues
 

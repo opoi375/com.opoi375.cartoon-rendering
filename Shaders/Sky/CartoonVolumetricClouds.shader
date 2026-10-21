@@ -59,6 +59,17 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             float4 _CartoonSunColor;
             float4 _CloudTint;
 
+            // 天空调色板（由 CartoonSkyboxFeature 推送，与天空盒共用同一套）。
+            // 之前 shader 没声明这些 uniform —— 所以"云跟着时间走"从来只是一句
+            // 注释，黄昏时云底也不会带上暖色。
+            float4 _AmbDayTop;
+            float4 _AmbDayHorizon;
+            float4 _AmbSunsetTop;
+            float4 _AmbSunsetHorizon;
+            float4 _AmbNightTop;
+            float4 _AmbNightHorizon;
+            float2 _AmbBlendParams;       // x = sunsetBlendStart, y = dayBlendEnd
+
             // x = 云底高度(世界 Y)，y = 单朵云最大厚度，z = cell 间距，w = 覆盖率
             float4 _CloudShapeParams;
             // x = 半径占 cell 的比例，y = 半径随机度，z = 厚度随机度，w = 边缘侵蚀强度
@@ -158,6 +169,59 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 return sum / max(norm, 1e-4);
             }
 
+            // ============================================================
+            // billow / Worley —— 云的"菜花感"只来自这里
+            // ============================================================
+            // 值噪声 FBM 是一堆高斯软球：用它做出来的云形只能是棉花团（实测
+            // 被吐槽就是这样）。真实积云的轮廓是【鼓包 + 收腰】的，特征来自：
+            //   * billow(n) = 1 - |2n - 1|  —— 把平滑场折成脊，凸处更凸、凹处收缝
+            //   * Worley 的胞边             —— 菜花的折痕
+            // 所以噪声要按层叠，每层分工不同：
+            //   L1  cell 实例（摆放）         → 大尺度的朵与朵
+            //   L2  billow(值噪声) 低频        → 轮廓扭曲（鼓包/拉长）
+            //   L3  billow(Worley) 中频        → 菜花的大瓣
+            //   L4  billow(Worley) 高频        → 边缘的小咬口
+            //   L5  billow(Worley) 内部        → 云芯的明暗纹理
+            // 只有 L2 用值噪声（它需要连续平滑），L3~L5 必须是 Worley。
+            float Billow(float n)
+            {
+                return 1.0 - abs(2.0 * n - 1.0);
+            }
+
+            // Worley：F1 距离。27 邻域、每胞 1 个特征点。
+            //
+            // ⚠ 这里【必须】用 [loop]，绝不能 [unroll]：CloudDensity 会在主步进
+            // （最多 64 次）、朝太阳的光照步进（最多 8 次）以及调试视图里各内联
+            // 一份。用三层 [unroll] 时 27 邻域会被完整展开，每个调用点复制
+            // 27×3 次哈希，最终 D3D11 编译卡在 99% 好几分钟（实测 72 秒仍在跑）。
+            // 单层 [loop] 把规模压回一个数量级。
+            float Worley3(float3 p)
+            {
+                float3 i = floor(p);
+                float best = 8.0;
+                [loop] for (int k = 0; k < 27; k++)
+                {
+                    float3 offs = float3((float)(k % 3) - 1.0,
+                                         (float)((k / 3) % 3) - 1.0,
+                                         (float)(k / 9) - 1.0);
+                    float3 c = i + offs;
+                    float3 jitter = float3(Hash13(c + 0.5),
+                                           Hash13(c + 19.1),
+                                           Hash13(c + 43.7));
+                    float3 d = c + jitter - p;
+                    best = min(best, dot(d, d));
+                }
+                return saturate(1.0 - sqrt(best));
+            }
+
+            // billow(Worley)：菜花的折痕。
+            // 只用【一档】：两档在轮廓带里是双倍开销，而大瓣由 L2 的 billow
+            // 值噪声（轮廓扭曲）已经给足了 —— 这一层只需要中频的折痕。
+            float WorleyLobes(float3 p)
+            {
+                return Billow(Worley3(p));
+            }
+
             // =================================================================
             // 相位函数 + 多重散射
             // =================================================================
@@ -205,15 +269,38 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             // =================================================================
             // 环境项只沿云的竖向高度插值（下暗上亮）。云底朝下，看到的天空立体
             // 角小、又被自身遮住 —— 积云最标志性的"亮顶 + 暗平底"就靠这个。
-            float3 CloudAmbient(float h01, float3 sunDir)
+            // 与天空盒同一套日夜 blend（太阳高度 -> 日 / 黄昏 / 夜 调色板）。
+            float3 BlendPalette(float3 night, float3 sunset, float3 day)
             {
-                // 取太阳方向两侧的天空色做上下差，跟天空盒的日/黄昏/夜晚
-                // 调色板共用同一套 blend（BlendPalette 由太阳高度推导）。
-                float sunY = -normalize(sunDir).y;
-                float dayW = saturate((sunY - (-0.15)) / 0.45);
-                float3 up   = lerp(float3(0.16, 0.22, 0.38), float3(0.36, 0.55, 0.86), dayW);
-                float3 down = lerp(float3(0.05, 0.07, 0.13), float3(0.62, 0.76, 0.92), dayW);
-                return lerp(down, up, saturate(h01)) * _CloudTint.rgb;
+                float sunY  = -normalize(_CartoonSunDirection.xyz).y;
+                float start = _AmbBlendParams.x;
+                float end   = max(_AmbBlendParams.y, start + 0.05);
+                float wSunset = smoothstep(start - 0.20, start, sunY);
+                float wDay    = smoothstep(start, end, sunY);
+                return lerp(lerp(night, sunset, wSunset), day, wDay);
+            }
+
+            // 环境光：直接取天空自己的调色板，云因此跟着时间走（黄昏云底带暖，
+            // 夜里云是暗蓝而不是死灰）。
+            //
+            // 【真实感的关键在这里】云底必须【明显暗】于云顶：云底朝下，只看到
+            // 一小块天空立体角、又被自身遮住；而上一版把"下方色"写成
+            // (0.62, 0.76, 0.92)（白天），云底和云顶一样亮 —— 于是整朵云被压成
+            // 一团没有层次的白棉花。这里底 = 地平线色 × 0.45，且竖向走 k² 曲线，
+            // 中段更暗，顶/底的对比被拉开。
+            float3 CloudAmbient(float h01)
+            {
+                float3 top     = BlendPalette(_AmbNightTop.rgb,     _AmbSunsetTop.rgb,     _AmbDayTop.rgb);
+                float3 horizon = BlendPalette(_AmbNightHorizon.rgb, _AmbSunsetHorizon.rgb, _AmbDayHorizon.rgb);
+
+                float k = saturate(h01 * 0.85 + 0.15);
+                float3 sky = lerp(horizon * 0.45, top, k * k);
+
+                // 地面反弹：地面把光打回云底。真实云底不会死黑靠的就是它 ——
+                // 一个便宜的半球项，日出 / 日落时地面反上来的暖色尤其明显。
+                float3 bounce = horizon * 0.12 * (1.0 - k);
+
+                return (sky + bounce) * _CloudTint.rgb;
             }
 
             float SoftQuantizeSteps(float x, float steps, float softness)
@@ -231,8 +318,13 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             // outH01  = 该点在【命中云团内部】的归一化高度（0=底 1=顶）
             // outAlive= 该云团的存在权重（覆盖率滑块用，平滑淡入不 pop）
             // outEdge = 命中的边带权重，调试视图用
+            // detailMul: 1 = 完整（含 Worley 侵蚀与内部纹理），0 = 只要"有没有云"。
+            // 朝太阳的自阴影步进用 0 —— 那趟最多 8 次、且一次主步进里就调一遍，
+            // 每次再跑 27 邻域 Worley 是算力灾难（每条射线每像素上千次哈希）。
+            // 自阴影本来也不需要逐体素的轮廓细节，只需要"穿过多少云"。
             float CloudDensity(float3 p, float2 windOffset, float2 camXZ,
-                               out float outH01, out float outAlive, out float outEdge)
+                               out float outH01, out float outAlive, out float outEdge,
+                               float detailMul)
             {
                 outH01 = 0.5; outAlive = 1.0; outEdge = 0.0;
 
@@ -280,11 +372,12 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 float2 warp = float2(0.0, 0.0);
                 bool maybe = true;
 
-                // ---- 3×3 cell 检测：最多 9 朵候选云，取密度最大者 ---------
+                // ---- 3×3 cell 检测：最多 9 朵候选云，取径向值最大者 ---------
                 float2 cell = floor(xz / spacing);
-                float best = 0.0;
-                float bestH = 0.0, bestAlive = 1.0, bestEdge = 0.0;
-                bool warpDone = false;
+                float  bestRadial = 0.0;
+                float  bestH = 0.0, bestAlive = 1.0;
+                float3 bestSeed = float3(0.0, 0.0, 0.0);
+                bool   warpDone = false;
 
                 [unroll]
                 for (int dy = -1; dy <= 1; dy++)
@@ -300,8 +393,7 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                         if (alive < 0.01) continue;
 
                         // 该云自己的半径 / 厚度（尺寸不一是"每朵都长得不一样"的关键）
-                        float rad  = spacing * sizeFrac
-                                   * lerp(1.0 - sizeJit, 1.0, h.z);
+                        float rad  = spacing * sizeFrac * lerp(1.0 - sizeJit, 1.0, h.z);
                         float thick= maxThick * lerp(1.0 - thickJit, 1.0, h.y);
                         float2 c   = (id + 0.5 + (h.xy - 0.5) * 0.55) * spacing;
 
@@ -313,78 +405,130 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                         float h01 = (p.y - baseAt) / thick;
                         if (h01 <= 0.0 || h01 >= 1.0) continue;
 
-                        float prof = pow(max(1.0 - h01 * h01, 0.0), dome);
+                        // 竖向剖面：真实的积云不是半球糖球 —— 它【下段接近直筒】、
+                        // 只在接近顶部时才收圆（云塔）。
+                        // (1-h²)^0.5 在 h=0.5 处半径只剩 0.87、h=0.8 处只剩 0.6，
+                        // 于是渲出来就是一个冰淇淋球（实测正是如此）。
+                        // 改成 (1-h³)^dome：h=0.5 处仍有 0.97、h=0.8 处 0.87，
+                        // 形状才立得起来。dome 继续控制顶部收得多狠（层云/积云）。
+                        float hh3  = h01 * h01 * h01;
+                        float prof = pow(max(1.0 - hh3, 0.0), dome);
                         float rEff = rad * prof;
+                        if (rEff <= 1.0) continue;
 
-                        // 软边：feather 取半径的一小份，世界单位 ⇒ 近处清晰远处自然融合
-                        // 软边只留"一个可分辨的过渡"：rad*0.22 会在 1km 的云上
-                        // 拖出 230m 的渐变，剪影必然糊成雾球（实测就是这么糊的）。
-                        float feather = max(rad * 0.05, 6.0);
-                        float body = saturate((rEff - dd) / feather);
-                        if (body <= best) continue;      // 注意：不能在这里把 warpDone 置位！
+                        // 归一化径向值：1 = 云芯，0 = 椭球表面。
+                        //
+                        // 【这是本次最关键的改动】旧实现用一条 feather = rad*0.05
+                        // （约 27m）的软边，于是 body 几乎是二值 —— 密度场等于一个
+                        // 实心椭球，噪声只能啃到最外一层皮，渲出来就是"白药丸"
+                        // （实测截图正是如此）。现在密度在整个体积内连续变化，
+                        // 噪声才能真正参与塑形。
+                        float radial = (rEff - dd) / rEff;
+                        if (radial <= 0.0) continue;
 
-                        // 首个有希望的候选到位后，算一次域扭曲再重测
+                        // 域扭曲：按 billow 值噪声把采样点推开，云缘不再是正圆
                         if (!warpDone)
                         {
-                            float3 wp = float3(xz.x, (p.y - baseAt) * 0.6, xz.y);
-                            float w1 = FBM(wp * freq, 2) - 0.5;
-                            float w2 = FBM(wp * freq + 19.3, 2) - 0.5;
+                            float3 wp = float3(xz.x, (p.y - baseAt) * 0.6, xz.y) * freq;
+                            float w1 = Billow(FBM(wp, 2)) - 0.5;
+                            float w2 = Billow(FBM(wp + 19.3, 2)) - 0.5;
                             warp = float2(w1, w2) * (2.0 * halfSpan);
                             warpDone = true;
                         }
 
-                        body = saturate((rEff - length((xz + warp) - c)) / feather);
-                        if (body <= best) continue;
+                        float radialW = (rEff - length((xz + warp) - c)) / rEff;
+                        if (radialW <= bestRadial) continue;
 
-                        best      = body;
-                        bestH     = h01;
-                        bestAlive = alive;
-                        bestEdge  = 4.0 * body * (1.0 - body);   // 表面带权重
+                        bestRadial = radialW;
+                        bestH      = h01;
+                        bestAlive  = alive;
+                        bestSeed   = h.xyz;     // 每朵云自己的噪声相位
                     }
                 }
 
-                if (best <= 0.0) return 0.0;
+                if (bestRadial <= 0.0) return 0.0;
 
-                // ---- 边缘侵蚀（Remap 形式，只啃边、不动实心）---------------
-                // erode = (body - e)/(1-e) 保证 body=1 仍是 1：云芯实心不变，
-                // 只有表面带被啃出椰菜花的咬口；而且单调，覆盖率语义不被破坏。
-                float e = 0.0;
-                if (detail > 0.001 && bestEdge > 0.001)
+                // ============================================================
+                // 噪声叠加 —— 云"长得像云"就靠这一段
+                // ============================================================
+                // 三层，全部在世界空间取样，并用【每朵云自己的相位】偏移：
+                // 不偏移的话同一片噪声会套在每朵云上，天上会出现一排一模一样的云
+                // （之前的截图正是如此）。
+                //   nLo  ~ 1/freq 米   billow(Worley) 的胞边 = 菜花折痕
+                //   nMid ~ 0.4/freq 米 billow(值噪声)，把大瓣再撕开一点
+                // 密度 = 径向梯度 - 噪声侵蚀：
+                //   shape*1.5       让云芯保持实心
+                //   carve*detail    把外圈啃成瓣状，并在【内部】留下疏密差 ——
+                //                   自阴影因此有层次，而不是一整块死白
+                float bodyOut;
+                if (detailMul > 0.001)
                 {
-                    float3 ep = float3((xz.x + warp.x), (p.y - baseAt) * 0.9,
-                                       (xz.y + warp.y)) * (freq * 5.5);
-                    float n = FBM(ep, 2);
-                    e = saturate((1.0 - n)) * detail * bestEdge * 0.9;
+                    float3 np = float3(xz.x, (p.y - baseAt), xz.y) * freq + bestSeed * 137.0;
+
+                    float nLo  = WorleyLobes(np);
+                    float nMid = Billow(FBM(np * 2.5 + 3.7, 2));
+                    float carve = (1.0 - nLo) * 0.62 + (1.0 - nMid) * 0.38;
+
+                    float shape = pow(saturate(bestRadial), 0.75);
+                    bodyOut = saturate(shape * 1.5 - carve * detail * 1.1);
+
+                    // 收边：把 0~0.25 这段密度陡起来。不清的话云缘会挂一层
+                    // 低密度絮状"白色喷雾"（半分辨率下读成噪点，非常脏）。
+                    // 内部的密度（≈1）完全不受影响。
+                    bodyOut = smoothstep(0.0, 0.25, bodyOut);
+                    // 顶部更碎（向上翻滚的读感），底部更整
+                    bodyOut *= lerp(1.06, 0.94, bestH);
+                }
+                else
+                {
+                    // 自阴影步进用的廉价路径：只要"有没有云"（跳过 Worley）
+                    bodyOut = saturate(pow(saturate(bestRadial), 0.75) * 1.5);
                 }
 
-                outH01    = bestH;
-                outAlive  = bestAlive;
-                outEdge   = bestEdge;
-                float bodyOut = saturate((best - e) / max(1.0 - e, 1e-3));
+                outH01   = bestH;
+                outAlive = bestAlive;
+                // 边带：径向值落在中段的"壳层"，调试视图用它看侵蚀是否生效
+                outEdge  = smoothstep(0.0, 0.30, bestRadial)
+                         * (1.0 - smoothstep(0.30, 0.95, bestRadial));
                 return bodyOut * bestAlive;
             }
 
-            // 无调试输出的简洁版本
+            // 无调试输出的简洁版本（完整细节）
             float CloudDensity(float3 p, float2 windOffset, float2 camXZ)
             {
                 float a, b, c;
-                return CloudDensity(p, windOffset, camXZ, a, b, c);
+                return CloudDensity(p, windOffset, camXZ, a, b, c, 1.0);
+            }
+
+            // 只要"有没有云"的廉价版本：自阴影步进专用（跳过 Worley 侵蚀）。
+            float CloudDensityCheap(float3 p, float2 windOffset, float2 camXZ)
+            {
+                float a, b, c;
+                return CloudDensity(p, windOffset, camXZ, a, b, c, 0.0);
             }
 
             // =================================================================
             // 朝太阳的光学深度（自阴影）
             // =================================================================
+            // 朝太阳的光学深度。
+            //
+            // 步长必须【按云的厚度取】而不是按视线步长取：原来用 stepLen*0.7，
+            // 视线步长在远处有几十米，几步只覆盖 ~100m —— 而云厚 420m，
+            // 于是光线"穿不透云"，朝太阳的光学深度恒偏小，云底因此拿到满强度
+            // 阳光、整朵云变成一团没有暗底的白棉花（实测就是这个症状）。
+            // 现在每个步进走 thickness*1.2/steps，几步走完整朵云。
             float LightOpticalDepth(float3 p, float3 toSun, float2 windOffset, float2 camXZ,
-                                    float stepLen, int steps)
+                                    float thickness, int steps)
             {
+                float ls = thickness * 1.2 / max((float)steps, 1.0);
                 float acc = 0.0;
                 [loop] for (int i = 1; i <= 8; i++)
                 {
                     if (i > steps) break;
-                    float3 sp = p + toSun * (stepLen * (float)i);
-                    float d = CloudDensity(sp, windOffset, camXZ);
+                    float3 sp = p + toSun * (ls * (float)i);
+                    float d = CloudDensityCheap(sp, windOffset, camXZ);
                     if (d <= 0.002) continue;
-                    acc += d * stepLen;
+                    acc += d * ls;
                 }
                 return acc;
             }
@@ -464,7 +608,7 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                     float3 p = camPos + viewDir * t;
 
                     float hh, al, ed;
-                    float dn = CloudDensity(p, windOffset, camPos.xz, hh, al, ed);
+                    float dn = CloudDensity(p, windOffset, camPos.xz, hh, al, ed, 1.0);
                     if (dn <= 0.003) continue;
 
                     // 消光与本步光学深度
@@ -473,8 +617,14 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
 
                     // 自阴影：朝太阳的光学深度
                     float od = LightOpticalDepth(p, toSun, windOffset, camPos.xz,
-                                                 stepLen * 0.7, lightSteps) * sigma;
-                    float3 L = sunCol * sunUp * CloudMultiScatter(od, mu);
+                                                 maxThick, lightSteps) * sigma;
+                    // 太阳色按【亮度归一化】再用：项目里的 sunColor 是 HDR
+                    // （这份预设约 11），直接乘任何强度都会把云裁成纯白，
+                    // 内部的所有明暗层次随之全部丢失（实测就是这样）。
+                    // 归一化后强度参数 = "云面相对亮度"，1.0 ≈ 纯白。
+                    float3 sunN = sunCol / max(dot(sunCol, float3(0.299, 0.587, 0.114)), 1e-3);
+                    float3 L = sunN * sunUp * CloudMultiScatter(od, mu)
+                             * _CloudProfileParams.z;      // 太阳强度
 
                     // Powder：云缘那圈"透过去"的亮边
                     float powder = 1.0 - exp(-dn * sigma * stepLen * 1.5);
@@ -486,8 +636,11 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                     L += sunCol * float3(1.0, 0.72, 0.45) * silver;
 
                     // 环境（下暗上亮）
+                    // 环境项：越往云芯被遮得越多（lt = 朝太阳的透射率，
+                    // 粗糙但便宜的遮蔽代理）。
                     float lt = exp(-od);
-                    L += CloudAmbient(hh, _CartoonSunDirection.xyz) * (0.3 + 0.7 * lt);
+                    L += CloudAmbient(hh) * (0.45 + 0.55 * lt)
+                       * _CloudProfileParams.w;            // 环境强度
 
                     // 能量守恒的薄片积分：L 已是入射辐射，所以是 L*(1-Tstep)。
                     // （再除一次 sigma 就是把 1/sigma 重复计入，会过曝约 20 倍）
@@ -507,7 +660,7 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                     float tm = lerp(tStart, tEnd, 0.5);
                     float3 pd = camPos + viewDir * tm;
                     float hh, al, ed;
-                    float v = CloudDensity(pd, windOffset, camPos.xz, hh, al, ed);
+                    float v = CloudDensity(pd, windOffset, camPos.xz, hh, al, ed, 1.0);
 
                     // Instance 视图要的是【cell 层面】的信息，不能复用密度函数的
                     // outAlive：那里只有命中云团才会写它，没命中就保留默认值 1.0，
@@ -545,7 +698,27 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                     else if (_CloudDebug < 3.5) dbg = hh;                              // 高度
                     else if (_CloudDebug < 4.5) dbg = ed;                              // 边带
                     else if (_CloudDebug < 5.5) dbg = saturate(tStart / kMaxDist * 8.0);
-                    else if (_CloudDebug < 6.5) dbg = CloudMultiScatter(1.0, mu);      // 散射响应
+                    else if (_CloudDebug < 6.5)
+                    {
+                        // 6 = 自阴影强度：探针点朝太阳的光学深度（0..6 映射）。
+                        // 亮 = 该点被自己身体挡得很厉害。整屏黑 = 自阴影根本没生效，
+                        // 那 HDR 太阳（约 11×）就会直接把云冲成白棉花。
+                        // 探针固定在云层中点，可能落在两朵云之间的空隙里（那样
+                        // od 天然为 0，测不出问题）。改为先沿射线找【最密】的那一点，
+                        // 在那一点上测自阴影 —— 这才是渲染时真正需要被遮蔽的样本。
+                        float bestDn = 0.0; float3 bestP = pd;
+                        for (int bs = 0; bs < 64; bs++)
+                        {
+                            if (bs >= marchSteps) break;
+                            float bt = tStart + ((float)bs + 0.5) * stepLen;
+                            float3 bp = camPos + viewDir * bt;
+                            float bd = CloudDensity(bp, windOffset, camPos.xz);
+                            if (bd > bestDn) { bestDn = bd; bestP = bp; }
+                        }
+                        float odP = LightOpticalDepth(bestP, toSun, windOffset, camPos.xz,
+                                                      maxThick, lightSteps) * sigma;
+                        dbg = saturate(odP / 6.0);
+                    }
                     else
                     {
                         // 7 = 整条射线的积分诊断：R = 真实累积的不透明度（1-T），
