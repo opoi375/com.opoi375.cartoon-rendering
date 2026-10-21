@@ -36,6 +36,10 @@ namespace CartoonRendering
         private static readonly int kCloudSunColorId     = Shader.PropertyToID("_CartoonSunColor");
         private static readonly int kCloudTintId         = Shader.PropertyToID("_CloudTint");
         private static readonly int kCloudShapeId        = Shader.PropertyToID("_CloudShapeParams");
+        private static readonly int kCloudShapeTexId     = Shader.PropertyToID("_CloudNoiseTex");
+        private static readonly int kCloudDetailTexId    = Shader.PropertyToID("_CloudNoiseDetail");
+        private static readonly int kCloudWeatherTexId   = Shader.PropertyToID("_CloudWeather2D");
+        private static readonly int kCloudWeatherParamsId= Shader.PropertyToID("_CloudWeatherParams");
         private static readonly int kCloudShape2Id       = Shader.PropertyToID("_CloudShapeParams2");
         private static readonly int kCloudShape3Id       = Shader.PropertyToID("_CloudShapeParams3");
         private static readonly int kCloudMarchId        = Shader.PropertyToID("_CloudMarchParams");
@@ -431,21 +435,26 @@ namespace CartoonRendering
                 mat.SetColor(kCloudSunColorId, sky.sunColor);
                 mat.SetColor(kCloudTintId, sky.cloudColor);
 
-                // _CloudShapeParams : x=云底 y=单朵最大厚度 z=cell 间距 w=覆盖率
+                // _CloudShapeParams : x=云底 y=云层厚度 z=形状噪声尺度 w=全局覆盖率
+                // 形状噪声尺度：1/scale 米一块图块。0.0022 约等于一块 455m。
                 mat.SetVector(kCloudShapeId, new Vector4(
                     sky.volCloudBaseHeight, sky.volCloudThickness,
-                    sky.volCloudSpacing, sky.volCloudCoverage));
-                // _CloudShapeParams2 : x=半径占比 y=半径随机 z=厚度随机 w=边缘侵蚀
-                mat.SetVector(kCloudShape2Id, new Vector4(
-                    sky.volCloudSize, sky.volCloudSizeJitter,
-                    sky.volCloudHeightJitter, sky.volCloudDetail));
-                // _CloudShapeParams3 : x=圆顶指数 y=域扭曲 z=噪声频率 w=密度
-                mat.SetVector(kCloudShape3Id, new Vector4(
-                    sky.volCloudDome, sky.volCloudWarp,
-                    sky.volCloudNoiseFreq, sky.volCloudDensity));
-                // _CloudMarchParams  : x=步进数 y=光照步进数
+                    1.0f / Mathf.Max(sky.volCloudShapeScale, 1.0f), sky.volCloudCoverage));
+                // _CloudShapeParams2 / 3 现已并入上面的参数与 _CloudMarchParams
+                mat.SetVector(kCloudShape2Id, new Vector4(0.0f, 0.0f, 0.0f, sky.volCloudDetail));
+                mat.SetVector(kCloudShape3Id, new Vector4(0.0f, sky.volCloudWarp,
+                                                        0.0f, sky.volCloudDensity));
+                // _CloudMarchParams  : x=步进数 y=光照步进数 z=细节侵蚀强度 w=噪声 mip
                 mat.SetVector(kCloudMarchId, new Vector4(
-                    sky.volCloudMarchSteps, sky.volCloudLightSteps, 0.0f, 0.0f));
+                    sky.volCloudMarchSteps, sky.volCloudLightSteps,
+                    sky.volCloudDetail, sky.volCloudNoiseLod));
+
+                // 天气图 / 噪声图
+                mat.SetVector(kCloudWeatherParamsId, new Vector4(
+                    sky.volCloudWeatherScale, sky.volCloudNoiseLod, sky.volCloudWarp, 0.0f));
+                if (sky.volCloudShapeTex != null)   mat.SetTexture(kCloudShapeTexId, sky.volCloudShapeTex);
+                if (sky.volCloudDetailTex != null)  mat.SetTexture(kCloudDetailTexId, sky.volCloudDetailTex);
+                if (sky.volCloudWeatherTex != null) mat.SetTexture(kCloudWeatherTexId, sky.volCloudWeatherTex);
                 Vector2 windDir = new Vector2(1.0f, 0.35f).normalized;
                 mat.SetVector(kCloudWindId, new Vector4(
                     sky.volCloudWindSpeed, windDir.x, windDir.y, 0.0f));

@@ -94,6 +94,17 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             float  _CloudDebug;
             TEXTURE2D(_CloudHistoryTex); SAMPLER(sampler_CloudHistoryTex);
 
+            // 三张噪声图（Tools > Clouds > Bake Noise 烘焙）
+            //   _CloudNoiseTex    : R = Perlin-Worley，GBA = Worley FBM @ f4/f8/f16
+            //   _CloudNoiseDetail : R = 高频 Worley FBM（只用来啃边缘）
+            //   _CloudWeather2D   : R = 覆盖率，G = 云型，BA = 域扭曲
+            TEXTURE3D(_CloudNoiseTex);    SAMPLER(sampler_CloudNoiseTex);
+            TEXTURE3D(_CloudNoiseDetail); SAMPLER(sampler_CloudNoiseDetail);
+            TEXTURE2D(_CloudWeather2D);   SAMPLER(sampler_CloudWeather2D);
+
+            // x = 天气图世界尺度（每米图块数） y = mip z = 域扭曲强度 w = 保留
+            float4 _CloudWeatherParams;
+
             // 世界弯曲联动（WorldBendController 全局推送）
             float _WorldBendCloudScale;
             float _WorldBendCloudMaxDroop;
@@ -313,199 +324,116 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
             }
 
             // =================================================================
-            // 密度：离散云团实例
+            // 密度：连续噪声场（Schneider 2015 / Nubis 生产管线）
             // =================================================================
-            // outH01  = 该点在【命中云团内部】的归一化高度（0=底 1=顶）
-            // outAlive= 该云团的存在权重（覆盖率滑块用，平滑淡入不 pop）
-            // outEdge = 命中的边带权重，调试视图用
-            // detailMul: 1 = 完整（含 Worley 侵蚀与内部纹理），0 = 只要"有没有云"。
-            // 朝太阳的自阴影步进用 0 —— 那趟最多 8 次、且一次主步进里就调一遍，
-            // 每次再跑 27 邻域 Worley 是算力灾难（每条射线每像素上千次哈希）。
-            // 自阴影本来也不需要逐体素的轮廓细节，只需要"穿过多少云"。
-            float CloudDensity(float3 p, float2 windOffset, float2 camXZ,
-                               out float outH01, out float outAlive, out float outEdge,
-                               float detailMul)
+            // 走过的弯路记在这里：曾经用「离散云团实例」（世界切 cell、每格一朵
+            // 椭球云）来做，理由是"避免连续场渗流成一整块"。但几何椭球 + 径向
+            // 剖面做出来永远是药丸形，怎么叠噪声都救不回来。真实实现里：
+            //   * 云的【形状】完全来自连续 3D 噪声的膨胀与侵蚀
+            //   * 云的【分离感】来自天气图的局部覆盖率，不是几何格子
+            //
+            // 管线（与 Schneider / Nubis 一致）：
+            //   shape   = tex3D(shapeNoise, uvw)        R=Perlin-Worley GBA=Worley
+            //   fbmW    = dot(shape.gba, (0.625,0.25,0.125))
+            //   base    = remap(shape.r, -(1-fbmW), 1)          ← Worley 膨胀 Perlin
+            //   base   *= heightGradient                        ← 高度带
+            //   base    = remap(base, 1-cov, 1) * cov            ← 局部覆盖率
+            //   density = remap(base, detail*0.22, 1)            ← 只啃边缘
+            float RemapLine(float v, float a, float b)
             {
-                outH01 = 0.5; outAlive = 1.0; outEdge = 0.0;
-
-                float baseY   = _CloudShapeParams.x;
-                float maxThick= max(_CloudShapeParams.y, 1.0);
-                float spacing = max(_CloudShapeParams.z, 1.0);
-                float cover   = _CloudShapeParams.w;
-
-                float sizeFrac = _CloudShapeParams2.x;
-                float sizeJit  = _CloudShapeParams2.y;
-                float thickJit = _CloudShapeParams2.z;
-                float detail   = _CloudShapeParams2.w;
-
-                float dome     = _CloudShapeParams3.x;
-                float warpAmp  = _CloudShapeParams3.y;
-                float freq     = max(_CloudShapeParams3.z, 1e-5);
-
-                // 世界弯曲：按【世界坐标】算（弯曲是相对相机的世界距离的函数，
-                // 不该跟着风偏移走）
-                float droop = CloudBendDroop(p.xz, camXZ);
-
-                // 风：整片云团网格随风平移（云是会走的，不是原地变形）
-                float2 xz = p.xz + windOffset;
-
-                // ---- 大尺度天气调制 -------------------------------------
-                // 只按 cell 哈希决定"这个 cell 有没有云"是【均匀随机散布】，
-                // 天上会呈现出"到处都有云朵"的撒糖感。真实天空是有云系的：
-                // 这边成片、那边一片空。用一个很低频的噪声（波长 = 8 个 cell）
-                // 把本地覆盖率往上/下推，就有了天气分区 —— 程序化实现，替代
-                // 已删除的 2D 天气贴图，因此没有任何贴图引用会失联。
-                float weather = _CloudProfileParams.y;
-                if (weather > 0.001)
-                {
-                    float wf = 1.0 / (spacing * 8.0);
-                    cover = saturate(cover
-                           + (VNoise(float3(xz * wf, 17.0)) - 0.5) * 2.0 * weather);
-                }
-                float baseAt = baseY - droop;
-
-                // ---- 轮廓域扭曲（低频 FBM，推的是采样点不是中心）-----------
-                // 这一步是"云缘是卷的、不是圆的"的来源。只在候选测试有希望时
-                // 才算（下面的宽松测试先 bail），大多数空气体素直接跳过。
-                // 摆动范围 0.15*spacing，小于 cell 留白，所以两朵云不会被扭到连上。
-                float halfSpan = 0.15 * spacing;
-                float2 warp = float2(0.0, 0.0);
-                bool maybe = true;
-
-                // ---- 3×3 cell 检测：最多 9 朵候选云，取径向值最大者 ---------
-                float2 cell = floor(xz / spacing);
-                float  bestRadial = 0.0;
-                float  bestH = 0.0, bestAlive = 1.0;
-                float3 bestSeed = float3(0.0, 0.0, 0.0);
-                bool   warpDone = false;
-
-                [unroll]
-                for (int dy = -1; dy <= 1; dy++)
-                {
-                    [unroll]
-                    for (int dx = -1; dx <= 1; dx++)
-                    {
-                        float2 id = cell + float2((float)dx, (float)dy);
-                        float3 h  = Hash32(id + 0.37);
-
-                        // 覆盖率 = 这个 cell 有没有云（平滑，所以滑覆盖度不会 pop）
-                        float alive = smoothstep(cover + 0.10, cover - 0.10, h.x);
-                        if (alive < 0.01) continue;
-
-                        // 该云自己的半径 / 厚度（尺寸不一是"每朵都长得不一样"的关键）
-                        float rad  = spacing * sizeFrac * lerp(1.0 - sizeJit, 1.0, h.z);
-                        float thick= maxThick * lerp(1.0 - thickJit, 1.0, h.y);
-                        float2 c   = (id + 0.5 + (h.xy - 0.5) * 0.55) * spacing;
-
-                        float dd = length(xz - c);
-                        if (dd > rad + halfSpan) continue;          // 离得远，跳过
-
-                        // 竖向剖面：h=0 底部半径最大（平底），h=1 收成圆顶。
-                        // (1 - h²)^dome：dome 小 = 扁平宽（层云），dome 大 = 圆墩（积云）
-                        float h01 = (p.y - baseAt) / thick;
-                        if (h01 <= 0.0 || h01 >= 1.0) continue;
-
-                        // 竖向剖面：真实的积云不是半球糖球 —— 它【下段接近直筒】、
-                        // 只在接近顶部时才收圆（云塔）。
-                        // (1-h²)^0.5 在 h=0.5 处半径只剩 0.87、h=0.8 处只剩 0.6，
-                        // 于是渲出来就是一个冰淇淋球（实测正是如此）。
-                        // 改成 (1-h³)^dome：h=0.5 处仍有 0.97、h=0.8 处 0.87，
-                        // 形状才立得起来。dome 继续控制顶部收得多狠（层云/积云）。
-                        float hh3  = h01 * h01 * h01;
-                        float prof = pow(max(1.0 - hh3, 0.0), dome);
-                        float rEff = rad * prof;
-                        if (rEff <= 1.0) continue;
-
-                        // 归一化径向值：1 = 云芯，0 = 椭球表面。
-                        //
-                        // 【这是本次最关键的改动】旧实现用一条 feather = rad*0.05
-                        // （约 27m）的软边，于是 body 几乎是二值 —— 密度场等于一个
-                        // 实心椭球，噪声只能啃到最外一层皮，渲出来就是"白药丸"
-                        // （实测截图正是如此）。现在密度在整个体积内连续变化，
-                        // 噪声才能真正参与塑形。
-                        float radial = (rEff - dd) / rEff;
-                        if (radial <= 0.0) continue;
-
-                        // 域扭曲：按 billow 值噪声把采样点推开，云缘不再是正圆
-                        if (!warpDone)
-                        {
-                            float3 wp = float3(xz.x, (p.y - baseAt) * 0.6, xz.y) * freq;
-                            float w1 = Billow(FBM(wp, 2)) - 0.5;
-                            float w2 = Billow(FBM(wp + 19.3, 2)) - 0.5;
-                            warp = float2(w1, w2) * (2.0 * halfSpan);
-                            warpDone = true;
-                        }
-
-                        float radialW = (rEff - length((xz + warp) - c)) / rEff;
-                        if (radialW <= bestRadial) continue;
-
-                        bestRadial = radialW;
-                        bestH      = h01;
-                        bestAlive  = alive;
-                        bestSeed   = h.xyz;     // 每朵云自己的噪声相位
-                    }
-                }
-
-                if (bestRadial <= 0.0) return 0.0;
-
-                // ============================================================
-                // 噪声叠加 —— 云"长得像云"就靠这一段
-                // ============================================================
-                // 三层，全部在世界空间取样，并用【每朵云自己的相位】偏移：
-                // 不偏移的话同一片噪声会套在每朵云上，天上会出现一排一模一样的云
-                // （之前的截图正是如此）。
-                //   nLo  ~ 1/freq 米   billow(Worley) 的胞边 = 菜花折痕
-                //   nMid ~ 0.4/freq 米 billow(值噪声)，把大瓣再撕开一点
-                // 密度 = 径向梯度 - 噪声侵蚀：
-                //   shape*1.5       让云芯保持实心
-                //   carve*detail    把外圈啃成瓣状，并在【内部】留下疏密差 ——
-                //                   自阴影因此有层次，而不是一整块死白
-                float bodyOut;
-                if (detailMul > 0.001)
-                {
-                    float3 np = float3(xz.x, (p.y - baseAt), xz.y) * freq + bestSeed * 137.0;
-
-                    float nLo  = WorleyLobes(np);
-                    float nMid = Billow(FBM(np * 2.5 + 3.7, 2));
-                    float carve = (1.0 - nLo) * 0.62 + (1.0 - nMid) * 0.38;
-
-                    float shape = pow(saturate(bestRadial), 0.75);
-                    bodyOut = saturate(shape * 1.5 - carve * detail * 1.1);
-
-                    // 收边：把 0~0.25 这段密度陡起来。不清的话云缘会挂一层
-                    // 低密度絮状"白色喷雾"（半分辨率下读成噪点，非常脏）。
-                    // 内部的密度（≈1）完全不受影响。
-                    bodyOut = smoothstep(0.0, 0.25, bodyOut);
-                    // 顶部更碎（向上翻滚的读感），底部更整
-                    bodyOut *= lerp(1.06, 0.94, bestH);
-                }
-                else
-                {
-                    // 自阴影步进用的廉价路径：只要"有没有云"（跳过 Worley）
-                    bodyOut = saturate(pow(saturate(bestRadial), 0.75) * 1.5);
-                }
-
-                outH01   = bestH;
-                outAlive = bestAlive;
-                // 边带：径向值落在中段的"壳层"，调试视图用它看侵蚀是否生效
-                outEdge  = smoothstep(0.0, 0.30, bestRadial)
-                         * (1.0 - smoothstep(0.30, 0.95, bestRadial));
-                return bodyOut * bestAlive;
+                return saturate((v - a) / max(b - a, 1e-5));
             }
 
-            // 无调试输出的简洁版本（完整细节）
+            // 高度带：底部渐入、顶部渐出。type 高 = 积云（平底高塔），低 = 层云（摊薄）。
+            float HeightGradient(float hf, float type)
+            {
+                float bot = lerp(0.10, 0.34, saturate(type));
+                float top = lerp(0.88, 0.58, saturate(type));
+                return smoothstep(bot, bot + 0.10, hf)
+                     * (1.0 - smoothstep(top - 0.16, top, hf));
+            }
+
+            // 天气图：R = 覆盖率，G = 云型，BA = 域扭曲
+            float4 SampleWeather(float3 p, float2 windOffset, out float coverage, out float type)
+            {
+                float2 wuv = frac(p.xz * _CloudWeatherParams.x) + windOffset * 0.12;
+                float4 w = SAMPLE_TEXTURE2D_LOD(_CloudWeather2D, sampler_CloudWeather2D,
+                                                wuv, _CloudWeatherParams.y);
+                // 覆盖率用【平移】而不是相乘：base 的典型值约 0.7，而 remap 下界是
+                // (1-coverage)。一乘就把 coverage 压进 0.1~0.45，密度几乎恒为 0。
+                coverage = saturate(w.r * 1.10 + (_CloudShapeParams.w - 0.55) * 1.3);
+                type     = w.g;
+                return w;
+            }
+
+            // 完整密度。outHf = 归一化高度，outCoverage = 局部覆盖率（调试用）。
+            float CloudDensity(float3 p, float2 windOffset, float2 camXZ,
+                               out float outHf, out float outCoverage, float detailMul)
+            {
+                outHf = 0.0; outCoverage = 0.0;
+
+                float baseY  = _CloudShapeParams.x;
+                float thick  = max(_CloudShapeParams.y, 1.0);
+                float topY   = baseY + thick;
+                if (p.y <= baseY || p.y >= topY) return 0.0;
+
+                float hf = saturate((p.y - baseY) / thick);
+
+                float coverage, type;
+                float4 w = SampleWeather(p, windOffset, coverage, type);
+                outCoverage = coverage;
+                if (coverage <= 0.005) return 0.0;
+
+                // 高度带先剔除：带外直接返回，省掉三次 3D 采样
+                float hg = HeightGradient(hf, type);
+                if (hg <= 0.002) return 0.0;
+
+                // 域扭曲：把采样点按天气图的 BA 推开（云缘才卷，不是正圆）
+                float2 warp = (w.ba - 0.5) * _CloudWeatherParams.z;
+
+                // 绝对世界坐标取样；Y 用同一个 metres-per-tile ⇒ 采样单元各向同性
+                float scale = max(_CloudShapeParams.z, 1e-6);
+                float3 uvw = float3(frac(p.x * scale) + warp.x,
+                                    (p.y - baseY) * scale,
+                                    frac(p.z * scale) + warp.y);
+
+                float lod = _CloudMarchParams.w;
+                float4 shape = SAMPLE_TEXTURE3D_LOD(_CloudNoiseTex, sampler_CloudNoiseTex, uvw, lod);
+
+                float fbmW = dot(shape.gba, float3(0.625, 0.25, 0.125));
+                float baseCloud = RemapLine(shape.r, -(1.0 - fbmW), 1.0);
+                if (baseCloud <= 0.002) return 0.0;
+
+                baseCloud *= hg;
+                baseCloud = RemapLine(baseCloud, 1.0 - coverage, 1.0) * coverage;
+                if (baseCloud <= 0.002) return 0.0;
+
+                // 细节侵蚀：只在高频噪声方向上抬一点点下界，云芯不动
+                if (detailMul > 0.001 && _CloudMarchParams.z > 0.001)
+                {
+                    float hfN = SAMPLE_TEXTURE3D_LOD(_CloudNoiseDetail, sampler_CloudNoiseDetail,
+                                                     uvw * 4.0 + float3(13.7, 5.1, 31.7),
+                                                     lod).r;
+                    float erode = lerp(1.0, hfN, saturate(_CloudMarchParams.z * detailMul));
+                    baseCloud = RemapLine(baseCloud, erode * 0.22, 1.0);
+                }
+
+                outHf = hf;
+                return saturate(baseCloud);
+            }
+
             float CloudDensity(float3 p, float2 windOffset, float2 camXZ)
             {
-                float a, b, c;
-                return CloudDensity(p, windOffset, camXZ, a, b, c, 1.0);
+                float hf, cov;
+                return CloudDensity(p, windOffset, camXZ, hf, cov, 1.0);
             }
 
-            // 只要"有没有云"的廉价版本：自阴影步进专用（跳过 Worley 侵蚀）。
             float CloudDensityCheap(float3 p, float2 windOffset, float2 camXZ)
             {
-                float a, b, c;
-                return CloudDensity(p, windOffset, camXZ, a, b, c, 0.0);
+                float hf, cov;
+                return CloudDensity(p, windOffset, camXZ, hf, cov, 0.0);
             }
+
 
             // =================================================================
             // 朝太阳的光学深度（自阴影）
@@ -607,8 +535,8 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                     float  t = tStart + jitter + ((float)s + 0.5) * stepLen;
                     float3 p = camPos + viewDir * t;
 
-                    float hh, al, ed;
-                    float dn = CloudDensity(p, windOffset, camPos.xz, hh, al, ed, 1.0);
+                    float hh, covNow;
+                    float dn = CloudDensity(p, windOffset, camPos.xz, hh, covNow, 1.0);
                     if (dn <= 0.003) continue;
 
                     // 消光与本步光学深度
@@ -654,58 +582,42 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                 }
 
 
-                // ---- 调试：实例视图（在云层中点取一次，证明云朵是离散的）----
+                // ---- 调试视图 -------------------------------------------------
+                // 放在积分之后：只有算完 1-T 才能回答"云太薄"还是"云太暗"。
                 if (_CloudDebug > 0.5)
                 {
                     float tm = lerp(tStart, tEnd, 0.5);
                     float3 pd = camPos + viewDir * tm;
-                    float hh, al, ed;
-                    float v = CloudDensity(pd, windOffset, camPos.xz, hh, al, ed, 1.0);
+                    float3 dbg = 0.0;
 
-                    // Instance 视图要的是【cell 层面】的信息，不能复用密度函数的
-                    // outAlive：那里只有命中云团才会写它，没命中就保留默认值 1.0，
-                    // 画出来是整屏白（实测就是这么误导我的）。这里独立查最近 cell。
-                    float aliveNear = 0.0;
+                    if (_CloudDebug < 1.5)
                     {
-                        // 这几个是 CloudDensity 的局部变量，Frag 里得自己再读一遍 uniform
-                        float spacing2 = max(_CloudShapeParams.z, 1.0);
-                        float sizeFrac2 = _CloudShapeParams2.x;
-                        float sizeJit2  = _CloudShapeParams2.y;
-                        float cover2    = saturate(_CloudShapeParams.w);
-                        float2 probeXZ = pd.xz + windOffset;
-                        float2 ccell   = floor(probeXZ / spacing2);
-                        float  bestD   = 1e9;
-                        [unroll]
-                        for (int qy = -1; qy <= 1; qy++)
-                        {
-                            [unroll]
-                            for (int qx = -1; qx <= 1; qx++)
-                            {
-                                float2 qid = ccell + float2((float)qx, (float)qy);
-                                float3 qh  = Hash32(qid + 0.37);
-                                float  qa  = smoothstep(cover2 + 0.10, cover2 - 0.10, qh.x);
-                                float  qrr = spacing2 * sizeFrac2 * lerp(1.0 - sizeJit2, 1.0, qh.z);
-                                float2 qc  = (qid + 0.5 + (qh.xy - 0.5) * 0.55) * spacing2;
-                                float  qd  = length(probeXZ - qc);
-                                if (qd < bestD) { bestD = qd; aliveNear = qa; }
-                            }
-                        }
+                        float cov, typ;                        // 1 = 天气图覆盖率
+                        SampleWeather(pd, windOffset, cov, typ);
+                        dbg = cov;
                     }
-
-                    float3 dbg;
-                    if      (_CloudDebug < 1.5) dbg = v;                               // 覆盖度（密度）
-                    else if (_CloudDebug < 2.5) dbg = aliveNear;                       // 实例/存活权重
-                    else if (_CloudDebug < 3.5) dbg = hh;                              // 高度
-                    else if (_CloudDebug < 4.5) dbg = ed;                              // 边带
-                    else if (_CloudDebug < 5.5) dbg = saturate(tStart / kMaxDist * 8.0);
-                    else if (_CloudDebug < 6.5)
+                    else if (_CloudDebug < 2.5)
                     {
-                        // 6 = 自阴影强度：探针点朝太阳的光学深度（0..6 映射）。
-                        // 亮 = 该点被自己身体挡得很厉害。整屏黑 = 自阴影根本没生效，
-                        // 那 HDR 太阳（约 11×）就会直接把云冲成白棉花。
-                        // 探针固定在云层中点，可能落在两朵云之间的空隙里（那样
-                        // od 天然为 0，测不出问题）。改为先沿射线找【最密】的那一点，
-                        // 在那一点上测自阴影 —— 这才是渲染时真正需要被遮蔽的样本。
+                        dbg = 1.0 - T;                         // 2 = 整条射线的覆盖度
+                    }
+                    else if (_CloudDebug < 3.5)
+                    {
+                        float hf, cov;                         // 3 = 归一化高度
+                        CloudDensity(pd, windOffset, camPos.xz, hf, cov, 1.0);
+                        dbg = hf;
+                    }
+                    else if (_CloudDebug < 4.5)
+                    {
+                        float hf, cov;                         // 4 = 中点密度
+                        dbg = CloudDensity(pd, windOffset, camPos.xz, hf, cov, 1.0);
+                    }
+                    else if (_CloudDebug < 5.5)
+                    {
+                        dbg = saturate(tStart / kMaxDist * 8.0);    // 5 = 相交起点
+                    }
+                    else
+                    {
+                        // 6 = 最密点朝太阳的光学深度（亮 = 被自己挡得厉害）
                         float bestDn = 0.0; float3 bestP = pd;
                         for (int bs = 0; bs < 64; bs++)
                         {
@@ -718,15 +630,6 @@ Shader "CartoonRendering/CartoonVolumetricClouds"
                         float odP = LightOpticalDepth(bestP, toSun, windOffset, camPos.xz,
                                                       maxThick, lightSteps) * sigma;
                         dbg = saturate(odP / 6.0);
-                    }
-                    else
-                    {
-                        // 7 = 整条射线的积分诊断：R = 真实累积的不透明度（1-T），
-                        // G = 云自身的亮度（col/coverageA）。一次抓图就能区分
-                        // "云太薄" 和 "云太暗" —— 前者 R 低，后者 G 低。
-                        dbg = float3(1.0 - T,
-                                     saturate(dot(col, float3(0.299, 0.587, 0.114))
-                                              / max(1.0 - T, 1e-3)), 0.0);
                     }
                     return half4(dbg, 1.0);
                 }

@@ -1,4 +1,43 @@
 # Changelog
+## v1.12.0
+
+### 变更（体积云密度模型重做）
+- **密度改回连续噪声场 —— 与 Schneider 2015 / Nubis 的生产管线一致。** 上一版用的
+  "离散云团实例"（世界切 cell、每格一朵椭球云）在架构上就走不通：几何椭球 + 径向
+  剖面做出来永远是药丸形，怎么叠噪声都救不回来（实测被评价为"白药丸"）。
+  真实实现里形状**完全来自连续 3D 噪声的膨胀与侵蚀**，云的分离感来自**天气图的
+  局部覆盖率**，不是几何格子。管线：
+  ```
+  fbmW = dot(shape.gba, (0.625, 0.25, 0.125))
+  base = remap(shape.r, -(1 - fbmW), 1)        // Perlin 被 Worley 膨胀
+  base *= heightGradient                       // 高度带（底/顶渐入渐出）
+  base = remap(base, 1 - coverage, 1) * coverage
+  density = remap(base, detail * 0.22, 1)      // 细节只啃边缘
+  ```
+- **重新引入三张烘焙图**（`Tools > Clouds > Bake Noise`）：
+  - `CloudShape3D` 128³：R = Perlin-Worley（`Remap(perlin, 0,1, worleyFBM, 1)`），GBA = Worley FBM @ f4/f8/f16
+  - `CloudDetail3D` 32³：高频 Worley FBM，只在边缘啃细碎咬口
+  - `CloudWeather2D` 512²：R = 覆盖率（云系），G = 云型（层云↔积云），BA = 域扭曲
+- **不做直方图均衡（CDF）**：均匀分布看着对比更强，但它会抹平 Perlin-Worley 的团块
+  结构，云会散成一层均匀棉絮（这是更早一版的错误）。
+- 覆盖率改为**整体平移**而不是相乘：`base` 的典型值约 0.7，而 remap 下界是
+  `1 - coverage`，一乘就把 coverage 压进 0.1~0.45，密度几乎恒为 0（实测天空全空）。
+
+### 新增
+- `volCloudShapeScale`：一块噪声图块对应多少米（**最直接的"云多大"旋钮**，积云 1500~2500）
+- `volCloudWeatherScale` / `volCloudWarp` / `volCloudNoiseLod`：天气图尺度、域扭曲、噪声 mip
+- `Tools > Clouds > Bake Noise`：一次烘三张图
+
+### 移除
+- 实例模型遗留的 `volCloudSpacing` / `volCloudSize` / `volCloudSizeJitter` /
+  `volCloudHeightJitter` / `volCloudDome` / `volCloudNoiseFreq` 字段
+
+### 修复
+- **着色器一度整体失效**：编辑过程中文件的 `Shader "..."` 声明被误删，导致
+  `Shader.Find` 返回 null、体积云 pass 被静默跳过（天空完全没有云且不报错）。
+- 调试视图重建为对新管线有意义的六项：天气覆盖率 / 射线覆盖度 / 归一化高度 /
+  中点密度 / 相交起点 / 最密点自阴影光学深度。
+
 ## v1.11.0
 
 ### 修复

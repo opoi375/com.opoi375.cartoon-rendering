@@ -1,4 +1,48 @@
 # Changelog
+## v1.12.0
+
+### Changed (volumetric cloud density model reworked)
+- **Density is a continuous noise field again - matching the production pipeline in
+  Schneider 2015 / Nubis.** The previous "discrete cloud instances" model (split the world
+  into cells, one ellipsoid cloud per cell) could not work architecturally: a geometric
+  ellipsoid with a radial profile always renders as a pill, and no amount of stacked noise
+  fixes that (it was reviewed as a "white pill"). In real implementations the shape comes
+  **entirely from dilating and eroding a continuous 3D noise**, and the sense of separate
+  clouds comes from the **weather map's local coverage**, not from geometric cells:
+  ```
+  fbmW = dot(shape.gba, (0.625, 0.25, 0.125))
+  base = remap(shape.r, -(1 - fbmW), 1)        // dilate Perlin by Worley
+  base *= heightGradient                       // fade in at the base, out at the top
+  base = remap(base, 1 - coverage, 1) * coverage
+  density = remap(base, detail * 0.22, 1)      // detail only chews the rim
+  ```
+- **Three baked maps are back** (`Tools > Clouds > Bake Noise`):
+  - `CloudShape3D` 128^3: R = Perlin-Worley (`Remap(perlin, 0,1, worleyFBM, 1)`), GBA = Worley FBM @ f4/f8/f16
+  - `CloudDetail3D` 32^3: high-frequency Worley FBM for fine bite on the rim
+  - `CloudWeather2D` 512^2: R = coverage (cloud systems), G = cloud type (stratus <-> cumulus), BA = domain warp
+- **No histogram equalisation (CDF)**: a uniform distribution looks punchier but flattens the
+  Perlin-Worley mass structure, leaving a uniform sheet of lint (the mistake of an earlier version).
+- Coverage is now applied as a **shift** rather than a multiply: `base` is typically around
+  0.7 while the remap's lower edge is `1 - coverage`, so multiplying drove coverage into
+  0.1~0.45 and density to zero (the sky rendered completely empty).
+
+### Added
+- `volCloudShapeScale`: metres per noise tile - **the most direct "how big are the clouds" knob**
+  (cumulus 1500~2500)
+- `volCloudWeatherScale` / `volCloudWarp` / `volCloudNoiseLod`: weather map scale, domain warp, noise mip
+- `Tools > Clouds > Bake Noise`: bakes all three maps in one go
+
+### Removed
+- Instance-model leftovers: `volCloudSpacing` / `volCloudSize` / `volCloudSizeJitter` /
+  `volCloudHeightJitter` / `volCloudDome` / `volCloudNoiseFreq`
+
+### Fixed
+- **The shader stopped working entirely at one point**: during editing its `Shader "..."`
+  declaration was lost, so `Shader.Find` returned null and the cloud pass was silently
+  skipped (empty sky with no error).
+- The debug views were rebuilt around the new pipeline: weather coverage / ray coverage /
+  normalised height / mid-point density / intersection start / densest-point self-shadow.
+
 ## v1.11.0
 
 ### Fixed

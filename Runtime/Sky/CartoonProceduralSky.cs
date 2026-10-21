@@ -104,61 +104,59 @@ namespace CartoonRendering
         [Tooltip("启用体积云（天上的云由它一家负责）。")]
         public bool volumetricCloudsEnabled = false;
 
-        [Header("· 云团摆放")]
-        [Range(400f, 5000f), Tooltip("云团 cell 间距（米）。朵与朵之间的留白由它决定：\n" +
-            "越大越稀疏、分得开；越小越挤成一片。")]
-        public float volCloudSpacing = 950f;
 
-        [Range(0.0f, 1.0f), Tooltip("覆盖率：这个 cell 是否住着云。\n" +
-            "平滑淡入（调它不会让云逐个 pop），同时被大尺度天气场上下推动。")]
-        public float volCloudCoverage = 0.62f;
+        [Range(0.0f, 1.0f), Tooltip("全局覆盖率：整体云量。实际覆盖率由天气图的 R 通道给出，这个值做整体平移。")]
+        public float volCloudCoverage = 0.55f;
 
-        [Range(0.2f, 1.4f), Tooltip("云团半径占 cell 的比例。\n" +
-            "大体印象：该值 × 2 ≈ 两朵云之间最窄处，>1.4 会挤到相接。")]
-        public float volCloudSize = 0.55f;
+        [Header("· 噪声与天气")]
+        [Tooltip("形状噪声 128^3：R = Perlin-Worley，GBA = Worley FBM @ f4/f8/f16。用 Tools > Clouds > Bake Noise 烘焙。")]
+        public Texture3D volCloudShapeTex;
 
-        [Range(0.0f, 1.0f), Tooltip("半径随机度：0 = 每朵一样大，1 = 大小差异拉满。")]
-        public float volCloudSizeJitter = 0.6f;
+        [Range(300f, 6000f), Tooltip("形状噪声的一块图块对应多少米。这是最直接的「云多大」旋钮：太小读成烟雾条纹，太大整片糊成一块。积云 1500~2500。")]
+        public float volCloudShapeScale = 1800f;
 
-        [Range(0.0f, 1.0f), Tooltip("大尺度天气调制：天上有云系分区（这边成片、那边一片空），\n" +
+        [Tooltip("细节噪声 32^3：高频 Worley FBM，只在云的边缘啃出细碎咬口。")]
+        public Texture3D volCloudDetailTex;
+
+        [Tooltip("天气图 512^2：R = 覆盖率（云系），G = 云型（层云↔积云），BA = 域扭曲。云的分离感来自这张图。")]
+        public Texture2D volCloudWeatherTex;
+
+        [Range(0.00001f, 0.0005f), Tooltip("天气图世界尺度：1 米 = 多少图块。0.00004 → 一块 25km（大尺度云系）。")]
+        public float volCloudWeatherScale = 0.00004f;
+
+        [Range(0.0f, 0.5f), Tooltip("域扭曲强度（噪声图块单位）：把采样坐标推开，云缘卷起来。")]
+        public float volCloudWarp = 0.12f;
+
+        [Tooltip("噪声 mip（0 = 全细节）。远处抬高可减少闪烁，代价是细节变软。")]
+        public float volCloudNoiseLod = 0.0f;
+
+
+        [Range(0.0f, 1.0f), Tooltip("全局覆盖率：整体云量。实际覆盖率由天气图（R 通道）给出，这个值做整体平移。\n" +
             "而不是均匀撒糖。0 = 完全随机散布。")]
         public float volCloudWeather = 0.4f;
 
         [Header("· 单朵云形状")]
         [Range(100f, 3000f), Tooltip("云底高度（绝对世界 Y，米）。")]
-        public float volCloudBaseHeight = 750f;
+        public float volCloudBaseHeight = 700f;
 
         [Range(60f, 2000f), Tooltip("单朵云的最大厚度（米）。每朵按 Thickness Jitter 变薄变厚。")]
-        public float volCloudThickness = 420f;
+        public float volCloudThickness = 900f;
 
-        [Range(0.0f, 1.0f), Tooltip("厚度随机度：0 = 每朵一样高。")]
-        public float volCloudHeightJitter = 0.6f;
 
-        [Range(0.2f, 0.8f), Tooltip("圆顶指数：0.25 = 宽而扁（层云/高积云），0.7 = 圆墩（积云）。\n" +
-            "底永远是平的（凝结面），这个值只管顶部收得快不快。")]
-        public float volCloudDome = 0.5f;
-
-        [Range(0.0f, 1.0f), Tooltip("轮廓域扭曲：把采样点推开，云缘变成卷的而不是圆的。")]
-        public float volCloudWarp = 0.55f;
-
-        [Range(0.0002f, 0.02f), Tooltip("扭曲 / 侵蚀噪声的频率（每米循环数）。\n" +
-                 "0.006 ≈ 170m 一个瓣，配 500m 的云正好是大瓣套小咬口；\n" +
-                 "太小退化成一大块光斑（0.002 就是），太碎变成粉刺。")]
-        public float volCloudNoiseFreq = 0.006f;
 
         [Range(0.0f, 1.0f), Tooltip("边缘侵蚀：0 = 光滑椭球，1 = 重度椰菜花咬口。\n" +
             "只啃表面带，云芯实心不动（Remap 形式，覆盖率语义不被破坏）。")]
-        public float volCloudDetail = 0.8f;
+        public float volCloudDetail = 0.5f;
 
         [Header("· 密度与步进")]
         [Range(0.2f, 4.0f), Tooltip("密度 / 消光。1.5~2.5 是厚云，>3 近乎不透明。")]
-        public float volCloudDensity = 1.9f;
+        public float volCloudDensity = 6.0f;
 
         [Range(8, 64), Tooltip("视线步进次数（质量 / 性能开关）。")]
-        public int volCloudMarchSteps = 32;
+        public int volCloudMarchSteps = 48;
 
         [Range(1, 8), Tooltip("朝太阳的自阴影步进次数。")]
-        public int volCloudLightSteps = 4;
+        public int volCloudLightSteps = 6;
 
         [Header("· 散射")]
         [Range(0.0f, 0.95f), Tooltip("前叶各向异性 g。云滴强烈前向散射，0.6~0.85 是物理区间；\n" +
