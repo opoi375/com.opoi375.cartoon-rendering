@@ -72,6 +72,12 @@ namespace CartoonRendering.EditorTools
 
             int volumes = EnsureVolumeComponents();
 
+            // 【必须】把刚补的 Volume 组件落盘。上面那次 SaveAssets 发生在这之前，
+            // 所以 AddObjectToAsset 出来的组件只在内存里 —— 重开编辑器就没了，
+            // YAML 里也搜不到（实证：components[7] 查得到、文件里却没有）。
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
             Debug.Log($"[ScanEffect] 已接入 {changed} 个 Renderer Data，补了 {volumes} 个 Volume 组件。" +
                       "按 F5 触发（或勾上控制器上的 Auto Demo）。");
         }

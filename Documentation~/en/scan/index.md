@@ -2,13 +2,11 @@
 
 A self-centred scan / radar sweep. One full-screen post-process pass, hooked up as a URP Renderer Feature.
 
-> **Status**
-> The render path is verified in the Game View: `Tools > Scan > Diagnose Draw` reports
-> `procedural OK, blit OK` for the standalone render texture, and setting `diagnosticSolid = 1`
-> makes the **whole Game View turn solid red**. Both the basic wireframe and the voxel shader code
-> are complete and compile with 0 errors.
-> **The voxel mode's look has not been visually verified yet** (another session switched scenes
-> during verification and the editor repeatedly stalled on script recompilation). See "Known issues".
+![Voxel lattice scan: 3D cubes on floor and walls, edge outlines, cyan tech look](/scan/voxel-scan.webp)
+
+> **Status: working, both modes verified with screenshots.**
+> The image above is a real capture of voxel mode in this package's demo scene
+> (`pattern = Voxel`, `voxelSize = 1.2 m`).
 
 ## Implementation
 
@@ -69,6 +67,13 @@ float face = saturate(s) - edge;                // exactly 1 axis -> grid face
 
 Setting `voxelSize > 0` switches the shader to the voxel branch; `voxelFill` blends between hollow
 wireframe and solid blocks, `voxelReveal` controls how softly cells light up.
+
+::: tip Verified
+The image above is the actual output of voxel mode: world-space cubes line up correctly in
+perspective on the floor, walls and ceiling, with crisp edges, lighting up cell by cell as the
+wavefront passes. Note that this is not a screen-space grid - rotate the camera and the lattice stays
+glued to the world.
+:::
 
 ### Compositing (why it never reads activeColor)
 
@@ -257,10 +262,15 @@ test collapsed, and every pixel was classified as "already scanned". This pass w
 `activeColorTexture`, whose depth is in the same orientation, so it **must not flip**; it now uses the
 identity transform.
 
+### Fixed: tri-state diagnostic push
+
+`diagnosticSolid` was a `BoolParameter` and the C# side pushed `? 1f : 0f`, so setting it to 2
+("green when not active") still took the "unconditional solid red" branch. It is now
+`ClampedFloatParameter(0..2)` pushed as-is. Worth remembering: **when you change a shader's
+diagnostic branch, change the C# push type too**, otherwise the diagnostic tool itself lies to you.**
+
 ### Still unverified
 
-- **The voxel mode's look** (edge thickness, cell-by-cell reveal rhythm, fill strength) has not been
-  confirmed in a screenshot. The code compiles, but "does it look good" needs eyes.
 - Overlap with the underwater pass / volumetric light in the same scene is untested.
 
 ### Diagnostic tool

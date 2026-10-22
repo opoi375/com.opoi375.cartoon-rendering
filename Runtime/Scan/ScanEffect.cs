@@ -137,7 +137,7 @@ namespace CartoonRendering
         public ClampedFloatParameter noise = new ClampedFloatParameter(0.15f, 0f, 1f, false);
 
         [Tooltip("诊断开关：勾上后整个通道强制输出纯红。用来判定这条 draw 到底有没有写进画面。")]
-        public BoolParameter diagnosticSolid = new BoolParameter(false, false);
+        public ClampedFloatParameter diagnosticSolid = new ClampedFloatParameter(0f, 0f, 2f, false);
 
         [Header("· 体素风格")]
 

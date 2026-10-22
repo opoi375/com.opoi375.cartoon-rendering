@@ -75,6 +75,18 @@
 ### Unverified
 - **The voxel mode's look** has not been confirmed in a screenshot (another session switched scenes
   mid-verification and the editor kept stalling on recompilation).
+
+### Verified and fixed (wrap-up)
+- **Voxel mode verified with a screenshot**: measured in the demo scene with
+  `pattern = Voxel / voxelSize = 1.2 m`; world-space cubes line up correctly in perspective on floor,
+  walls and ceiling, with crisp edges lighting up cell by cell. The docs now carry the image.
+- **Tri-state diagnostic push fixed**: `diagnosticSolid` was a `BoolParameter` and C# pushed only
+  0/1, so setting 2 (green when inactive) still hit the "unconditional solid red" branch - the
+  diagnostic tool was lying. Now `ClampedFloatParameter(0..2)` pushed as-is.
+- **Setup menu save-order bug**: `SaveAssets()` ran before the Volume components were added, so new
+  components lived only in memory and vanished on editor restart (not even present in the YAML).
+  A second `SaveAssets()` + `Refresh()` now runs afterwards.
+
 ## v1.12.0
 
 ### Changed (volumetric cloud density model reworked)

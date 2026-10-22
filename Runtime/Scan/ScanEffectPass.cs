@@ -172,7 +172,7 @@ namespace CartoonRendering
                     mpb.SetFloat(kFadeOutId, ScanEffectRuntime.fadeOut);
                     mpb.SetVector(kSceneScaleBiasId, s_SceneScaleBias);
                     mpb.SetVector(kViewSizeId, data.viewSize);
-                    mpb.SetFloat(kDiagId, s.diagnosticSolid.value ? 1f : 0f);
+                    mpb.SetFloat(kDiagId, s.diagnosticSolid.value);   // 0/1/2 三态，见 Volume 上的说明
                     mpb.SetFloat(kVoxelSizeId, s.voxelSize.value);
                     mpb.SetFloat(kVoxelFillId, s.voxelFill.value);
                     mpb.SetFloat(kVoxelRevealId, s.voxelReveal.value);
