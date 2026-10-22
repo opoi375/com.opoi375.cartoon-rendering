@@ -1,4 +1,65 @@
 # Changelog
+## v1.14.0
+
+### 新增（扫描特效 Scan Effect）
+- **以自身为中心的扫描 / 雷达扩散特效**，作为 RenderGraph 全屏后期单 Pass 接入：
+  `ScanEffectFeature` + `ScanEffectPass` + `ScanEffect`（Volume）+ `ScanEffectController`。
+- **两种形态**：`Radial`（以角色/相机为球心四周扩散）与 `Frontal`（沿朝向推进，可加扇形范围）。
+  两者共用一条公式 —— `Sector Angle = 360` 时 `cos(180°) = -1`，扇形裁切自然退化成全通过。
+- **五层视觉**：波前薄壳（带屏幕导数下限防闪）、拖尾、三轴网格 + 格心点阵 + 滚动扫描线、
+  深度 Roberts 描边、辉光（交给管线 Bloom）。
+- **可参数化**：半径 / 距离 / 速度 / 扇形半角 / 扫描线粗细 / 边缘高亮 / 辉光 / 网格密度 /
+  点阵密度 / 恢复时间与曲线 / 颜色 / 噪波扰动 / 距离衰减 / 质量档。
+- **四种触发方式**：手动 `Trigger()`、技能 `TriggerSkill()`（半径×1.6 速度×1.3，后半段倍率回落）、
+  `autoDemo` 自动演示、F5 触发 / F6 开关的快捷键。
+- **三档质量**：Low（无噪波、无描边）/ Medium（默认）/ High（双层噪波 + 深度描边）。
+- **关闭即零开销**：`IsActive()` 为 false 时不 EnqueuePass，也不声明深度依赖。
+- 编辑器菜单 `Tools > Scan >`：一键接入、加控制器、切换开关、诊断绘制。
+
+### 兼容
+- 合成用 `Blend One OneMinusSrcAlpha` 且**不读 activeColor**（RenderGraph 里它是外部导入资源），
+  因此不会与水下后期、体积光、SSIL 抢写同一块缓冲。
+- 默认注入 `BeforeRenderingPostProcessing`，辉光仍会被 Bloom / Tonemap 接手。
+- `a = 0` 时逐像素恒等原图：关闭或未扫到的区域**一个像素都不动**。
+- 预览相机与反射探针直接跳过；缺深度图时打印一次警告并跳过，而不是静默平涂。
+
+### 修复 / 踩坑记录
+- **`m_RendererFeatureMap` 必须刷新**：只往 `m_RendererFeatures` 里加而不刷新这本账，
+  Feature 就在列表里但根本不跑，且不报错。接入菜单改为反射调用 `ValidateRendererFeatures()`，
+  并且**无条件**刷新（之前只在"新增"分支里刷，导致重跑菜单也修不好）。
+- **新 Input System 下 `Input.GetKeyDown` 会抛异常**，而它位于 `Update` 最前面，会把动画推进与
+  自动演示一起中断（表现为"按了没反应、自动演示也不跑"）。新增 `ScanInput` 双后端：
+  旧管理器直连，新系统走反射（避免包对 `com.unity.inputsystem` 产生硬依赖）。
+- **`line` 是 HLSL 保留字**（几何着色器图元），当局部变量名会报
+  `syntax error: unexpected token 'line'`。
+
+### 已知问题
+- **片元输出到画面这一步尚未打通**：draw 已被记录并执行（`SetRenderFunc` 执行、材质
+  `passCount = 1`、shader 名正确、深度有效），但即使强制 `return half4(1,0,0,0)` 也没有任何
+  像素落到最终缓冲上。诊断入口：`Tools > Scan > Diagnose Draw (RenderTexture)`。
+
+### 新增（体素风格）
+- **体素模式**：`pattern = Voxel` 或用 `voxelSize > 0` 切到**真正的 3D 立方格**扫描 ——
+  世界按 `voxelSize` 量化成立方体，波前经过时**逐块点亮**。
+  与平面网格的区别：棱线是"两个及以上轴同时贴面"（立方体的 12 条棱），
+  内部按格哈希给明暗（实心体素块），点亮按 `(front - 格心距离)` 逐层涌出。
+- 新参数 `voxelSize`（边长，0 = 关闭）/ `voxelFill`（空心↔实心）/ `voxelReveal`（揭开宽度）。
+
+### 修复（这两条是本轮排查的全部结论）
+- **Volume 参数的 YAML 格式**：最初写成单行 `diagnosticSolid: 1`，而 Volume 参数是嵌套的
+  `VolumeParameter`（`m_OverrideState` / `m_Value`），单行会被 Unity **静默忽略** ——
+  导致"强制纯红"从未生效，并且误判了好几轮。改成嵌套结构后立刻出红。
+- **场景没有 Volume / profile 里没组件 → 静默不画**：`ScanEffectFeature` 现在会在
+  "有扫描在跑但没有组件"时打一次警告并说明怎么补；
+  `Setup Scan Effect` 菜单会无条件刷新 `m_RendererFeatureMap`、给场景 Volume 补组件、
+  **场景完全没有 Volume 时自动新建 Global Volume**。
+- **Y 翻转用错了**：原先照抄水下后期的 `graphicsUVStartsAtTop` 翻转，实测整屏上下颠倒
+  （深度采到镜像位置 → 世界坐标错 → 距离判断全崩 → 整屏被判成已扫过）。本通道写
+  `activeColorColorTexture`、深度与之同向，**不需要翻转**，已改为恒等。
+- 基础染色从 0.42 降到 0.12：原来那项会把整屏刷成厚厚一层青色，网格/点阵全被盖住。
+
+### 未验证
+- **体素模式的观感**没有截图确认（验证期间另一条会话切换了场景，编辑器反复卡在重编译）。
 ## v1.12.0
 
 ### 变更（体积云密度模型重做）

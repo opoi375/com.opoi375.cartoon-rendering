@@ -1,4 +1,80 @@
 # Changelog
+## v1.14.0
+
+### Added (Scan Effect)
+- **A self-centred scan / radar sweep**, integrated as a single RenderGraph full-screen post pass:
+  `ScanEffectFeature` + `ScanEffectPass` + `ScanEffect` (Volume) + `ScanEffectController`.
+- **Two patterns**: `Radial` (sweep outward from the character/camera) and `Frontal` (push along the
+  facing direction, optionally limited to a sector). Both share one formula - with
+  `Sector Angle = 360`, `cos(180°) = -1` and the sector cull degenerates into "pass everything".
+- **Five visual layers**: wavefront shell (with a screen-derivative floor against shimmer), trail,
+  three-axis grid + cell-centre dots + scrolling scanline, depth Roberts outline, and glow
+  (handed to the pipeline Bloom).
+- **Parameterised**: radius / distance / speed / sector angle / line width / edge highlight / glow /
+  grid density / dot density / restore time and curve / colours / noise disturbance / distance
+  falloff / quality tier.
+- **Four trigger paths**: manual `Trigger()`, skill `TriggerSkill()` (radius x1.6, speed x1.3, with
+  the multipliers easing back afterwards), `autoDemo` looping, and F5 trigger / F6 toggle hotkeys.
+- **Three quality tiers**: Low (no noise, no outline) / Medium (default) / High (two noise octaves +
+  depth outline).
+- **Zero cost when off**: when `IsActive()` is false the pass is not enqueued and no depth dependency
+  is requested.
+- Editor menus under `Tools > Scan >`: one-click wiring, add controller, toggle, diagnose draw.
+
+### Compatibility
+- Compositing uses `Blend One OneMinusSrcAlpha` and **never reads activeColor** (an imported external
+  resource in RenderGraph), so it cannot fight with the underwater pass, volumetric light or SSIL.
+- Injects at `BeforeRenderingPostProcessing` by default, so the glow still goes through Bloom / Tonemap.
+- At `a = 0` the result is pixel-identical to the input: when off, or on pixels the scan has not
+  reached, **nothing changes on screen**.
+- Preview and reflection cameras are skipped; a missing depth texture logs once and skips rather than
+  silently drawing a flat tint.
+
+### Fixed / pitfalls recorded
+- **`m_RendererFeatureMap` must be refreshed**: pushing into `m_RendererFeatures` without updating that
+  bookkeeping leaves the feature listed but never running, with no error. The setup menu now reflects
+  into `ValidateRendererFeatures()` and refreshes **unconditionally** (it previously only did so on the
+  "added" branch, so re-running the menu could not fix a stale map).
+- **`Input.GetKeyDown` throws under the new Input System**, and it sat at the top of `Update`, so the
+  exception also killed animation stepping and the auto demo (it looked like "nothing responds"). Added
+  `ScanInput` with two backends: direct under the legacy manager, reflection under the new system
+  (keeping the package free of a hard `com.unity.inputsystem` dependency).
+- **`line` is an HLSL reserved keyword** (geometry-shader primitive); using it as a local variable name
+  yields `syntax error: unexpected token 'line'`.
+
+### Known issues
+- **The fragment output does not reach the screen yet**: the draw is recorded and executed
+  (`SetRenderFunc` runs, material `passCount = 1`, shader name correct, depth valid), yet even forcing
+  `return half4(1,0,0,0)` lands no pixels on the presented buffer. Diagnostic entry point:
+  `Tools > Scan > Diagnose Draw (RenderTexture)`.
+
+### Added (voxel style)
+- **Voxel mode**: `pattern = Voxel`, or set `voxelSize > 0` to switch to a **true 3D cubic lattice**
+  scan - the world is quantised into cubes and cells **light up one by one** as the wavefront passes.
+  Unlike the flat grid, edges come from "two or more axes near a face" (the cube's 12 edges), the
+  interior gets per-cell hash shading (solid blocks), and the reveal surges layer by layer based on
+  `(front - cellCentreDist)`.
+- New parameters `voxelSize` (edge length, 0 = off) / `voxelFill` (hollow vs solid) / `voxelReveal`.
+
+### Fixed (these two are the whole conclusion of this round)
+- **Volume parameter YAML shape**: parameters were first written as a single line
+  `diagnosticSolid: 1`, but Volume parameters are nested `VolumeParameter` objects
+  (`m_OverrideState` / `m_Value`); a single line is **silently ignored** by Unity - so the forced
+  solid red never applied and several diagnosis rounds were misled. The nested shape produced red
+  immediately.
+- **No Volume in the scene / component missing from the profile -> silent no-draw**: 
+  `ScanEffectFeature` now logs once when a scan is running without a component, explaining the fix;
+  `Setup Scan Effect` refreshes `m_RendererFeatureMap` unconditionally, adds the component to scene
+  Volumes, and **creates a Global Volume when the scene has none**.
+- **Y flip misapplied**: the pass copied the underwater post process's `graphicsUVStartsAtTop` flip,
+  which flipped the whole screen vertically (depth sampled at mirrored coordinates -> wrong world
+  positions -> the distance test collapsed -> every pixel classified as already scanned). This pass
+  writes `activeColorTexture`, whose depth shares its orientation, so it **must not flip**.
+- Base tint reduced from 0.42 to 0.12: that term washed the screen in thick cyan and buried the grid.
+
+### Unverified
+- **The voxel mode's look** has not been confirmed in a screenshot (another session switched scenes
+  mid-verification and the editor kept stalling on recompilation).
 ## v1.12.0
 
 ### Changed (volumetric cloud density model reworked)

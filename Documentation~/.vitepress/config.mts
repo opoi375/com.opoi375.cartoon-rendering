@@ -25,6 +25,7 @@ function sidebarZh() {
         { text: '世界弯曲（小星球视角）', link: '/world-bend/' },
         { text: '体积光（上帝光）', link: '/volumetric-light/' },
         { text: '屏幕空间间接光照（SSIL）', link: '/ssil/' },
+        { text: '扫描特效（雷达 / 前方推进）', link: '/scan/' },
         { text: '像素化后期', link: '/effects/' },
         { text: 'LED 点阵文字屏', link: '/led/' },
         { text: 'SDF UI 图形', link: '/ui-sdf/' }
@@ -65,6 +66,7 @@ function sidebarEn() {
         { text: 'World Bend (Tiny-Planet)', link: '/en/world-bend/' },
         { text: 'Volumetric Light (God Rays)', link: '/en/volumetric-light/' },
         { text: 'Screen-Space Indirect Light (SSIL)', link: '/en/ssil/' },
+        { text: 'Scan Effect (Radar / Forward Sweep)', link: '/en/scan/' },
         { text: 'Pixelate Post Process', link: '/en/effects/' },
         { text: 'LED Dot-Matrix Text', link: '/en/led/' },
         { text: 'SDF UI Graphics', link: '/en/ui-sdf/' }

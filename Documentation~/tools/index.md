@@ -76,3 +76,20 @@ Grass Field Tool：编辑期生成草场布局、烘焙交互数据，见[交互
 - **Tools > Volumetric Light > GI/Configure | Bake (Async) | Check Progress | Reattach Lighting Data | Clear Baked Data**：配静态标记与 Mixed 灯光 → 异步烘间接光 → 查进度 / 重挂 Lighting Data → 清数据
 
 模型本身由 `Assets/CartoonRendering/VolumetricLight/Blender/factory_room.py` 生成（跑法与参数见同目录 `README.md`）；改房间尺寸后 Unity 侧的太阳方向与机位（`FactoryInteriorSceneBuilder` 顶部的 `SunDir` / `ViewPos`）需要跟着调。间接光烘焙的注意事项见[体积光（上帝光）](/volumetric-light/)。
+
+## 扫描特效
+
+| 菜单 | 作用 |
+| --- | --- |
+| **Tools > Scan > Setup Scan Effect** | 一键接入：把 `ScanEffectFeature` 加进所有 Renderer Data（**并刷新 `m_RendererFeatureMap`**），往场景 Volume / 工程内 Cartoon 相关 Volume Profile 补 `Scan Effect` 组件 |
+| **Tools > Scan > Add Controller To Scene** | 在场景里放一个 `ScanEffectController`（Auto Demo 打开，F5 触发 / F6 开关） |
+| **Tools > Scan > Toggle Effect In Volume** | 快速开关 Volume 里的 `enabled`。关掉后该通道**完全不进渲染图** |
+| **Tools > Scan > Diagnose Draw (RenderTexture)** | 诊断工具：绕开 URP 把材质直接画进 RenderTexture 并回读像素，用来区分「着色器不出像素」和「渲染图接入位置不对」 |
+
+::: warning 只加列表、不刷 map 会静默失效
+URP 用 `m_RendererFeatureMap` 按 localId 索引 Feature 子资产。手工往 `m_RendererFeatures` 里塞而
+不刷新这本账，运行时就是「Feature 在列表里但根本没跑」，**而且不报任何错**。上面的菜单已经用反射
+调用 `ValidateRendererFeatures()` 处理掉了；手工接入时请注意这一点。
+:::
+
+详见[扫描特效](/scan/)。
